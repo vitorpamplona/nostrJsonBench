@@ -41,13 +41,14 @@ class Args(
     var warmupMs: Long = 1000,
     var minTimeMs: Long = 2000,
     var minRounds: Int = 5,
+    var burst: Int = 64,
     var list: Boolean = false,
     var childParser: String? = null,
     var childOut: String? = null,
     /** In a child: count allocations (in the JVM started with the agent) instead of timing. */
     var childCount: Boolean = false,
 ) {
-    fun settings() = Settings(warmupMs, minTimeMs, minRounds)
+    fun settings() = Settings(warmupMs, minTimeMs, minRounds, burst)
 
     companion object {
         fun parse(argv: Array<String>): Args {
@@ -67,6 +68,7 @@ class Args(
                     "--warmup-ms" -> a.warmupMs = next().toLong()
                     "--min-time-ms" -> a.minTimeMs = next().toLong()
                     "--min-rounds" -> a.minRounds = next().toInt()
+                    "--burst" -> a.burst = next().toInt().also { if (it < 1) usage("--burst must be at least 1") }
                     "--quick" -> {
                         a.warmupMs = 200
                         a.minTimeMs = 300
@@ -89,7 +91,8 @@ class Args(
             System.err.println(
                 """
                 usage: jsonbench [--corpus DIR] [--out FILE] [--workloads a,b] [--parsers x,y]
-                                 [--warmup-ms N] [--min-time-ms N] [--min-rounds N] [--quick] [--list]
+                                 [--warmup-ms N] [--min-time-ms N] [--min-rounds N] [--burst N]
+                                 [--quick] [--list]
                 """.trimIndent(),
             )
             exitProcess(if (error == null) 0 else 2)
@@ -214,7 +217,7 @@ object Child {
         var m: Measurement? = null
         if (v.errors == 0) {
             try {
-                m = Runner.measure(parser, inputs, settings)
+                m = Runner.measure(parser, lines, inputs, settings)
             } catch (t: Throwable) {
                 error = "while timing: ${t.javaClass.name}: ${t.message?.take(300)}"
             }
@@ -236,7 +239,7 @@ object Child {
         row["license"] = spec.license
         row["mode"] = spec.mode
         row["input"] = spec.input
-        row["notes"] = spec.notes
+        row["notes"] = if (m == null) spec.notes else listOf(spec.notes, GC_NOTE).filter { it.isNotBlank() }.joinToString(" ")
         row["variant"] = spec.variant
         row["workload"] = w.name
         row["events"] = w.events
@@ -299,6 +302,11 @@ object Child {
         return row
     }
 }
+
+/** Appended to every row's notes: where gc_count / gc_ms come from (HARNESS.md "Arrival"). */
+const val GC_NOTE =
+    "gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over " +
+        "preloaded Strings (no frames built), GarbageCollectorMXBean deltas."
 
 /** What every counted row says about how its object counts were taken (HARNESS.md "objects_note"). */
 val OBJECTS_NOTE =
@@ -403,7 +411,7 @@ object Parent {
                 cmd += listOf("--child-parser", spec.id, "--child-out", tmp.path, "--corpus", corpusDir.path)
                 cmd += listOf("--workloads", workloads.joinToString(",") { it.name })
                 cmd += listOf("--warmup-ms", args.warmupMs.toString(), "--min-time-ms", args.minTimeMs.toString())
-                cmd += listOf("--min-rounds", args.minRounds.toString())
+                cmd += listOf("--min-rounds", args.minRounds.toString(), "--burst", args.burst.toString())
                 val code =
                     ProcessBuilder(cmd)
                         .redirectOutput(ProcessBuilder.Redirect.INHERIT)
@@ -447,7 +455,12 @@ object Parent {
                 "os" to "${System.getProperty("os.name")} ${System.getProperty("os.version")}",
             )
         out["settings"] =
-            linkedMapOf("warmup_ms" to args.warmupMs, "min_time_ms" to args.minTimeMs, "min_rounds" to args.minRounds)
+            linkedMapOf(
+                "warmup_ms" to args.warmupMs,
+                "min_time_ms" to args.minTimeMs,
+                "min_rounds" to args.minRounds,
+                "burst" to args.burst,
+            )
         out["corpus_fingerprint"] = manifest.fingerprint
         out["results"] = results
 

@@ -17,7 +17,8 @@ python3 corpus/prepare.py        # once: builds .corpus/
 
 `run.sh` builds this directory's standalone Gradle project (`./gradlew installDist`) and
 runs `build/install/jsonbench/bin/jsonbench`. Flags: `--corpus`, `--out`, `--workloads`,
-`--parsers`, `--warmup-ms`, `--min-time-ms`, `--min-rounds`, `--quick`, `--list`.
+`--parsers`, `--warmup-ms`, `--min-time-ms`, `--min-rounds`, `--burst` (default 64; `--quick`
+keeps it), `--quick`, `--list`.
 Extra JVM flags go through `JAVA_OPTS`.
 
 ## How it measures
@@ -31,15 +32,29 @@ Extra JVM flags go through `JAVA_OPTS`.
   harness's own manifest/result JSON goes through a tiny hand-written reader/writer
   (`MiniJson.kt`), so no measured library is loaded or JIT-profiled before its turn.
 - **Monomorphic hot loop.** Each parser is its own class whose `parseAll(inputs)` holds
-  the loop over the workload; the sink folds `kind + tags.size + content.length` (DOM
+  the loop over a burst; the sink folds `kind + tags.size + content.length` (DOM
   parsers: `kind + tag count`).
+- **Arrival.** A round walks the workload in bursts of `--burst` frames (HARNESS.md
+  "Arrival"). Per burst, untimed, the harness builds fresh frames from the lines' UTF-8
+  bytes with `new String(bytes, UTF_8)`, what OkHttp's `onMessage(webSocket, text)` hands
+  the app. Then `System.nanoTime` times the burst's parses, one per frame. The next burst
+  overwrites the frame buffer, so the old frames become garbage. A round's time is the sum
+  of its bursts; warm-up runs the same rounds. Byte parsers still encode the String inside
+  the timed parse. `baseline-utf8-decode` gets a fresh copy of the line's bytes instead.
+  Verification, the retained pass and the allocation counter still use Strings preloaded
+  once, untimed.
 - **Verification first.** Every event is decoded once into an `Event` and fed to the
   SHA-256 digest of HARNESS.md; DOM results are converted to an `Event` for this step
   only. A parser that throws is not timed.
-- **Memory.** Over the measured rounds only: `ThreadMXBean.getThreadAllocatedBytes`
-  for the benchmark thread (`alloc_bytes_per_event`) and the summed
-  `GarbageCollectorMXBean` count/time deltas. `System.gc()` runs once between warm-up and
-  measurement.
+- **Memory.** `alloc_bytes_per_event` covers the timed parses only: the harness reads
+  `ThreadMXBean.getCurrentThreadAllocatedBytes` just before and after each burst's timed
+  part and sums the deltas, so the frame Strings are not counted. A read costs ~17 ns and
+  allocates nothing; two per burst is under 0.1% of a 64-frame burst (~50 µs), and they
+  sit outside the timed part. `System.gc()` runs once between warm-up and measurement.
+  `gc_count`/`gc_ms` also cover the parses only. They come from a separate untimed pass
+  after measurement: as many rounds as were measured, a tight loop over the preloaded
+  Strings (no frames built), after a `System.gc()`. They are the summed
+  `GarbageCollectorMXBean` deltas over that pass. Each row's `notes` says so.
 - **Retained heap.** After timing, the same child parses every event once more with the
   parser's `keep` (its own result type: Quartz's `Event` subclass, a `JsonNode`…) and
   keeps them all in one array. `retained_bytes_per_event` is the used-heap growth between
