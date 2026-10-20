@@ -38,6 +38,7 @@ struct Options {
   long warmup_ms = 1000;
   long min_time_ms = 2000;
   long min_rounds = 5;
+  long burst = 64;
   bool list = false;
 };
 
@@ -67,6 +68,7 @@ Options parse_args(int argc, char** argv) {
     else if (a == "--warmup-ms") warm = std::stol(next());
     else if (a == "--min-time-ms") mt = std::stol(next());
     else if (a == "--min-rounds") mr = std::stol(next());
+    else if (a == "--burst") o.burst = std::stol(next());
     else if (a == "--quick") quick = true;
     else if (a == "--list") o.list = true;
     else fail("unknown argument: " + a);
@@ -79,6 +81,7 @@ Options parse_args(int argc, char** argv) {
   if (warm) o.warmup_ms = *warm;
   if (mt) o.min_time_ms = *mt;
   if (mr) o.min_rounds = *mr;
+  if (o.burst < 1) fail("--burst must be at least 1");
   return o;
 }
 
@@ -132,6 +135,35 @@ using Clock = std::chrono::steady_clock;
 
 long long now_ns() {
   return std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch()).count();
+}
+
+// One round (HARNESS.md "Timing", Arrival): walk the workload in bursts of `burst` frames.
+// Untimed, build each burst's frames as new exact-size std::strings from the lines' bytes
+// (what IXWebSocket/websocketpp hand the app); time only the burst's parses; then free the
+// frames. The alloc counters are read around each timed part, so they cover the parses and
+// not the frame copies. `frames` is reserved by the caller and reused, so building a burst
+// allocates only the strings.
+struct RoundStats {
+  long long ns = 0;
+  uint64_t allocs = 0;
+  uint64_t alloc_bytes = 0;
+};
+
+RoundStats run_round(Runner& runner, const Lines& lines, std::vector<std::string>& frames, size_t burst) {
+  RoundStats st;
+  for (size_t b = 0; b < lines.size(); b += burst) {
+    const size_t e = std::min(lines.size(), b + burst);
+    for (size_t i = b; i < e; i++) frames.emplace_back(lines[i].data(), lines[i].size());
+    const uint64_t c0 = jb_alloc_count, b0 = jb_alloc_bytes;
+    const long long t0 = now_ns();
+    g_sink = g_sink + runner.parse_burst(Frames(frames));
+    const long long t1 = now_ns();
+    st.allocs += jb_alloc_count - c0;
+    st.alloc_bytes += jb_alloc_bytes - b0;
+    st.ns += t1 - t0;
+    frames.clear();
+  }
+  return st;
 }
 
 // How allocs_per_event and retained_objects_per_event were counted for this row.
@@ -220,23 +252,26 @@ ojson run_one(const ParserInfo& p, const ojson& wl, const Lines& lines, const Op
   }
 
   try {
+    const size_t burst = size_t(o.burst);
+    std::vector<std::string> frames;
+    frames.reserve(std::min(burst, lines.size()));
+
     const long long warm_end = now_ns() + o.warmup_ms * 1000000LL;
     do {
-      g_sink = g_sink + runner->round();
+      run_round(*runner, lines, frames, burst);
     } while (now_ns() < warm_end);
 
     std::vector<long long> samples;
-    const uint64_t c0 = jb_alloc_count, b0 = jb_alloc_bytes;
+    uint64_t allocs = 0, alloc_bytes = 0;
     const long long start = now_ns();
     while (true) {
-      const long long t0 = now_ns();
-      g_sink = g_sink + runner->round();
-      const long long t1 = now_ns();
-      samples.push_back(t1 - t0);
+      const RoundStats st = run_round(*runner, lines, frames, burst);
+      samples.push_back(st.ns);
+      allocs += st.allocs;
+      alloc_bytes += st.alloc_bytes;
       if (samples.size() >= 10000) break;
-      if ((long)samples.size() >= o.min_rounds && (t1 - start) >= o.min_time_ms * 1000000LL) break;
+      if ((long)samples.size() >= o.min_rounds && (now_ns() - start) >= o.min_time_ms * 1000000LL) break;
     }
-    const uint64_t c1 = jb_alloc_count, b1 = jb_alloc_bytes;
 
     std::vector<long long> sorted = samples;
     std::sort(sorted.begin(), sorted.end());
@@ -252,8 +287,8 @@ ojson run_one(const ParserInfo& p, const ojson& wl, const Lines& lines, const Op
     row["ns_per_event"] = median / double(events);
     row["mb_per_s"] = double(bytes) / (median / 1e9) / 1e6;
     row["events_per_s"] = double(events) / (median / 1e9);
-    row["alloc_bytes_per_event"] = double(b1 - b0) / parsed;
-    row["allocs_per_event"] = double(c1 - c0) / parsed;
+    row["alloc_bytes_per_event"] = double(alloc_bytes) / parsed;
+    row["allocs_per_event"] = double(allocs) / parsed;
     row["gc_count"] = nullptr;
     row["gc_ms"] = nullptr;
   } catch (const std::exception& e) {
@@ -412,7 +447,8 @@ int main(int argc, char** argv) {
     out["language"] = "C/C++";
     out["runtime"] = std::string(JB_COMPILER) + ", " + JB_FLAGS + ", C++23, single-threaded";
     out["host"] = {{"cpu", cpu_model()}, {"cores", std::thread::hardware_concurrency()}, {"os", os_name()}};
-    out["settings"] = {{"warmup_ms", o.warmup_ms}, {"min_time_ms", o.min_time_ms}, {"min_rounds", o.min_rounds}};
+    out["settings"] = {{"warmup_ms", o.warmup_ms}, {"min_time_ms", o.min_time_ms}, {"min_rounds", o.min_rounds},
+                       {"burst", o.burst}};
     out["corpus_fingerprint"] = manifest["fingerprint"];
     out["results"] = ojson::array();
 

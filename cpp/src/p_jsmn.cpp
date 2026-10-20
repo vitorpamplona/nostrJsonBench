@@ -85,9 +85,9 @@ class Tok final : public Runner {
     str(sig);
     d.event_end();
   }
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) {
+    for (const auto& l : frames) {
       tokenize(l);
       const jsmntok_t* t = toks_.data();
       for (int k = 0, j = 1; k < t[0].size; k++) {

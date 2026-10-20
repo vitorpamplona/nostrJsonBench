@@ -43,9 +43,9 @@ class TypedRunner final : public Runner {
     read_or_throw(e, lines_[i]);
     digest_event(d, e);
   }
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) {
+    for (const auto& l : frames) {
       E e;
       (void)glz::read_json(e, l);
       sink += e.kind + e.tags.size() + e.content.size();
@@ -111,9 +111,9 @@ class DomRunner final : public Runner {
     d.str(str(member(j, "sig")));
     d.event_end();
   }
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) {
+    for (const auto& l : frames) {
       Generic j;
       (void)glz::read_json(j, l);
       sink += u64(member(j, "kind")) + member(j, "tags").get_array().size();

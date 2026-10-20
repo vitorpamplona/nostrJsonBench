@@ -51,9 +51,13 @@ Every row's `notes` field in the results says exactly what the glue does. The po
 matter when reading the numbers:
 
 - **Input is the WebSocket text frame**: a `std::string` (what IXWebSocket, websocketpp and
-  Boost.Beast hand an app). The harness builds one per line from `(data, size)` before timing,
-  so `capacity() == size()`: no spare capacity a parser could use as padding. Every parser
-  starts from that string inside the timed loop:
+  Boost.Beast hand an app), built from `(data, size)`, so `capacity() == size()`: no spare
+  capacity a parser could use as padding.
+- **Arrival** (HARNESS.md "Timing"): a round walks the workload in bursts of `--burst` frames
+  (default 64). For each burst the harness builds the frames as new `std::string`s (untimed),
+  times `Runner::parse_burst()` over them with `steady_clock`, then frees them. A round's time is
+  the sum of its bursts; warm-up runs the same rounds. Verify, retained heap and the digest use
+  the preloaded lines. Every parser starts from the frame inside the timed parse:
   - `string`: the library reads `data()`/`size()` (or `c_str()`, whose NUL is free) directly.
     Copies the library makes on its own (yyjson_read and sajson copy into their document) are
     part of the parse.
@@ -104,8 +108,10 @@ matter when reading the numbers:
 `operator new` from libstdc++ and every C library. Each successful call is one allocation;
 bytes are the requested size (for `realloc`, the full new size). A `realloc` that moves the block
 counts as one new allocation (objects created), one glibc grows in place as none: that took
-`jsonc-dom` from 48.1 to 44.0 allocs/event on `reactions`; no other row changed. `gc_count` and
-`gc_ms` are null.
+`jsonc-dom` from 48.1 to 44.0 allocs/event on `reactions`; no other row changed. The harness
+reads `jb_alloc_count`/`jb_alloc_bytes` just before and after each burst's timed parses and sums
+them, so the frame copies and the harness's own bookkeeping are not counted (the `*-pool` rows now
+read exactly 0). `gc_count` and `gc_ms` are null.
 
 It also keeps a live-byte counter: a block adds its `malloc_usable_size()` when handed out and
 subtracts it when freed (`realloc` applies the difference). That is the heap the block really

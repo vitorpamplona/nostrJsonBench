@@ -48,9 +48,9 @@ class DomRunner final : public Runner {
  public:
   explicit DomRunner(const Lines& l) : lines_(l) {}
   void digest(size_t i, DigestWriter& d) override { digest_dom(json::parse(lines_[i]), d); }
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) sink += fold_dom(json::parse(l));
+    for (const auto& l : frames) sink += fold_dom(json::parse(l));
     return sink;
   }
   // A value on the default resource owns all its storage.
@@ -86,9 +86,9 @@ class PoolRunner final : public Runner {
       return uint64_t(0);
     });
   }
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) sink += with_value(l, [](const json::value& v) { return fold_dom(v); });
+    for (const auto& l : frames) sink += with_value(l, [](const json::value& v) { return fold_dom(v); });
     return sink;
   }
 
@@ -106,9 +106,9 @@ class TypedRunner final : public Runner {
     Event e = json::value_to<Event>(json::parse(lines_[i]));
     digest_event(d, e);
   }
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) {
+    for (const auto& l : frames) {
       Event e = json::value_to<Event>(json::parse(l));
       sink += e.kind + e.tags.size() + e.content.size();
     }

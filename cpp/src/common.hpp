@@ -5,6 +5,7 @@
 #include <charconv>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -129,21 +130,27 @@ std::unique_ptr<Kept> keep_each(size_t n, Make&& make) {
   return k;
 }
 
-// The WebSocket text frames: one exact-size std::string per event (HARNESS.md "Input").
+// The preloaded WebSocket text frames: one exact-size std::string per event (HARNESS.md
+// "Input"). Verify, keep_all() and sizing scratch buffers use these.
 using Lines = std::vector<std::string>;
 
-// One (parser, workload) instance. The constructor receives the frames and may set up
-// reusable state (a parser, a scratch buffer) but must not transform the input: anything a
-// parser does on top of the std::string happens inside digest()/round(). digest() parses
-// event i once and feeds the digest, throwing on any failure. round() parses every event
-// once and returns the sink. keep_all() parses every event once more and keeps the results
-// (keep_each); it returns nullptr when a result is a view into reused parser state (a
-// reused tape, arena or scratch buffer), so retained heap is not measurable.
+// One burst of frames built fresh for the timed loop (HARNESS.md "Timing", Arrival): each an
+// exact-size std::string, freed after the burst.
+using Frames = std::span<const std::string>;
+
+// One (parser, workload) instance. The constructor receives the preloaded lines and may set
+// up reusable state (a parser, a scratch buffer) but must not transform the input: anything a
+// parser does on top of the std::string happens inside digest()/parse_burst(). digest()
+// parses event i once and feeds the digest, throwing on any failure. parse_burst() parses
+// each frame of a burst once (timed by the harness) and returns the sink. keep_all() parses
+// every event once more and keeps the results (keep_each); it returns nullptr when a result
+// is a view into reused parser state (a reused tape, arena or scratch buffer), so retained
+// heap is not measurable.
 class Runner {
  public:
   virtual ~Runner() = default;
   virtual void digest(size_t i, DigestWriter& d) = 0;
-  virtual uint64_t round() = 0;
+  virtual uint64_t parse_burst(Frames frames) = 0;
   virtual std::unique_ptr<Kept> keep_all() { return nullptr; }
 };
 

@@ -62,9 +62,9 @@ class DomRunner final : public Runner {
     check(doc);
     digest_dom(doc, d);
   }
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) {
+    for (const auto& l : frames) {
       rj::Document doc;
       doc.Parse(l.c_str());
       sink += fold_dom(doc);
@@ -103,9 +103,9 @@ class InsituRunner final : public Runner {
     check(doc);
     digest_dom(doc, d);
   }
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) {
+    for (const auto& l : frames) {
       rj::Document doc;
       doc.ParseInsitu(copy(l));
       sink += fold_dom(doc);
@@ -147,9 +147,9 @@ class PoolRunner final : public Runner {
       return uint64_t(0);
     });
   }
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) sink += with_doc(l, [](PoolDoc& doc) { return fold_dom(doc); });
+    for (const auto& l : frames) sink += with_doc(l, [](PoolDoc& doc) { return fold_dom(doc); });
     return sink;
   }
 
@@ -229,9 +229,9 @@ class SaxRunner final : public Runner {
     parse(lines_[i], e);
     digest_event(d, e);
   }
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) {
+    for (const auto& l : frames) {
       Event e;
       parse(l, e);
       sink += e.kind + e.tags.size() + e.content.size();

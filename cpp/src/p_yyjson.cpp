@@ -110,9 +110,9 @@ class DomRunner final : public Runner {
     }
     yyjson_doc_free(doc);
   }
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) {
+    for (const auto& l : frames) {
       yyjson_doc* doc = yyjson_read(l.data(), l.size(), 0);
       sink += fold_dom(yyjson_doc_get_root(doc));
       yyjson_doc_free(doc);
@@ -152,9 +152,9 @@ class InsituRunner final : public Runner {
     }
     yyjson_doc_free(doc);
   }
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) {
+    for (const auto& l : frames) {
       yyjson_doc* doc = parse(l);
       sink += fold_dom(yyjson_doc_get_root(doc));
       yyjson_doc_free(doc);
@@ -188,9 +188,9 @@ class PoolRunner final : public Runner {
     }
     yyjson_doc_free(doc);
   }
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) {
+    for (const auto& l : frames) {
       yyjson_doc* doc = yyjson_read_opts(const_cast<char*>(l.data()), l.size(), 0, &alc_, nullptr);
       sink += fold_dom(yyjson_doc_get_root(doc));
       yyjson_doc_free(doc);
@@ -221,9 +221,9 @@ class TypedRunner final : public Runner {
     }
     yyjson_doc_free(doc);
   }
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) {
+    for (const auto& l : frames) {
       yyjson_doc* doc = yyjson_read(l.data(), l.size(), 0);
       E e;
       extract(yyjson_doc_get_root(doc), e);
