@@ -1,90 +1,95 @@
 # nostrJsonBench
 
-Which JSON parser, in any language, turns Nostr events into usable objects fastest and
-with the least garbage and retained memory? nostrJsonBench runs the same real events through
-~150 parser variants in six harnesses (JVM, Rust, C/C++, Go, JS on Node/Bun/Deno,
-Python), proves every parser decoded every event identically, and ranks them in one
-report against what [Amethyst](https://github.com/vitorpamplona/amethyst) ships today
-(`quartz-jackson`: Jackson + Quartz's `EventDeserializer`).
+Which JSON parser decodes Nostr events fastest, with the least garbage and memory? ~150
+parser variants in six harnesses (JVM, Rust, C/C++, Go, JS on Node/Bun/Deno, Python) parse
+the same 31k real events; every result is verified by digest and compared against
+[Amethyst](https://github.com/vitorpamplona/amethyst)'s parser, `quartz-jackson`.
 
-The latest published run is in [`results/reference/`](results/reference/).
+## Results
+
+2026-10-20, 4-core Xeon VM, single thread. Full tables, every workload and the failures:
+[report.md](results/reference/2026-10-20/report.md) (run details in its
+[README](results/reference/2026-10-20/README.md)).
+
+**Best parser per runtime** (`all` workload, JSON → event with owned strings):
+
+| runtime | parser | ns/event | MB/s | retained B/event | × quartz |
+|---|---|---:|---:|---:|---:|
+| C++ | simdjson on-demand | 635 | 1,363 | 1,288 | 2.6× |
+| Rust | sonic-rs | 677 | 1,279 | 1,281 | 2.4× |
+| Go | sonic | 738 | 1,174 | 1,431 | 2.2× |
+| JVM | jsoniter-scala | 836 | 1,036 | 1,381 | 1.9× |
+| Deno | `JSON.parse` | 988 | 877 | 1,229 | 1.6× |
+| Python | msgspec | 1,054 | 822 | 1,712 | 1.5× |
+| Node | `JSON.parse` | 1,135 | 763 | 1,234 | 1.4× |
+| Bun | `Bun.JSONL.parse` | 1,178 | 735 | 1,031 | 1.4× |
+| JVM | **`quartz-jackson`** | **1,620** | **535** | **1,376** | 1.0× |
+
+**JVM**, from the String a WebSocket delivers:
+
+| parser | ns/event | alloc B/event | retained B/event |
+|---|---:|---:|---:|
+| jsoniter-scala ¹ | 836 | 2,772 | 1,381 |
+| fastjson2 (reflection) | 905 | 3,701 | 1,389 |
+| fastjson2 (hand loop) | 1,096 | 3,096 | 1,389 |
+| Jackson streaming (String → bytes) | 1,338 | 3,282 | 1,370 |
+| DSL-JSON (hand loop) | 1,377 | 2,542 | 1,381 |
+| **Quartz, Jackson path** | **1,620** | 2,332 | 1,376 (900 once LocalCache shares its strings) |
+| Quartz, kotlinx path | 1,643 | 4,476 | 1,376 |
+| kotlinx.serialization | 1,871 | 2,943 | 1,370 |
+| Moshi streaming | 1,936 | 3,067 | 1,370 |
+| Gson streaming | 3,309 | 5,127 | 1,381 |
+
+¹ Needs the Scala runtime. simdjson-java (805 MB/s, DOM only) needs the JDK Vector API;
+neither ships on Android.
+
+**Findings**
+
+- **Quartz** dropped from 5,585 to 1,620 ns/event when
+  [amethyst#4583](https://github.com/vitorpamplona/amethyst/pull/4583) moved
+  `String.intern()` from the parser to LocalCache entry. Interning still cuts a kept
+  event's memory by 35% (1,376 → 900 B), but only kept events pay for it now.
+- **Borrowing and DOMs** go further: simdjson 2.0 GB/s and sonic-rs 1.7 GB/s with strings
+  pointing into the frame, simdjson's DOM 3.2 GB/s.
+- **Go** spans 7× (sonic 1,174 MB/s vs `encoding/json` 161); the Nostr-specific decoders
+  (fiatjaf.com/nostr 832 MB/s, go-nostr 764) beat most generic ones.
+- **JS:** Deno's `JSON.parse` is 15% faster than Node 22's. On Node and Deno,
+  `TextEncoder.encode` costs more than `JSON.parse` itself; a parser that needs bytes
+  should `encodeInto` a reused buffer (~150–190 ns/event).
+- **Fail verification:** cJSON (cuts strings at `\u0000`), ojg (mangles escaped emoji),
+  `@jsonjoy.com/json-pack` (no `\uXXXX`), the `simdjson` npm addon (leaks and segfaults
+  on Node 22).
+
+## Run
 
 ```bash
-./run.sh                       # every harness whose toolchain is installed (~1-1.5 h)
-./run.sh --quick               # smoke run, minutes, noisy numbers
-./run.sh --only jvm,rust       # a subset
-./run.sh --workloads all,notes # any HARNESS.md flag goes to every harness
-CORPUS_SOURCE=dump.ndjson.gz ./run.sh --rebuild-corpus   # your own events
-QUARTZ_DIR=../amethyst ./run.sh --only jvm               # an unreleased Quartz from an Amethyst checkout
+./run.sh                        # every harness whose toolchain is installed (~1–1.5 h)
+./run.sh --quick                # smoke run, minutes
+./run.sh --only jvm,rust        # a subset; any HARNESS.md flag passes through
+QUARTZ_DIR=../amethyst ./run.sh --only jvm             # an unreleased Quartz
+CORPUS_SOURCE=dump.ndjson.gz ./run.sh --rebuild-corpus # your own events
 ```
 
-Results: `results/<harness>.json`, merged into `results/report.md`
-(`python3 report/report.py` regenerates it). Harnesses run one after another:
-running two at once steals cores from both.
+Results land in `results/<harness>.json` and `results/report.md`. Harnesses run one at a
+time; each directory's README lists its parsers, versions and licenses (all permissive
+except Parsson, EPL-2.0 / GPL-2.0 with Classpath exception, in the JVM harness).
 
-## What is measured
+## Method
 
-- **The task.** One WebSocket text frame's event JSON → one in-memory event with all
-  seven NIP-01 fields decoded (content unescaped, tags as string arrays). Single thread.
-- **The input.** Each language starts from what its usual WebSocket client hands an app
-  for a text frame: JVM `String` (OkHttp), Rust `&str`, C++ `std::string`, Go `[]byte`,
-  JS string, Python `str`. Anything a parser needs on top (encode to bytes, pad, copy)
-  is inside the timed loop. See [HARNESS.md](HARNESS.md).
-- **Speed:** median round over the whole workload → MB/s and ns per event.
-- **Garbage:** bytes (and, where the runtime can count them, allocations) per parsed
-  event, plus GC collections/time during measurement.
-- **Retained memory:** parse the whole workload again, keep every result alive (as a
-  client cache does), and report the heap still held per event. This is where
-  de-duplication like Quartz's `String.intern()` pays off.
-- **Correctness:** every parser's output is folded into a SHA-256 digest that must match
-  the reference (Python's `json`) on every workload; mismatches are reported and excluded
-  from rankings. Several libraries fail it (see the report).
+- **Task:** one event JSON → one in-memory event with all seven NIP-01 fields decoded.
+- **Input:** what the language's WebSocket client hands an app for a text frame (JVM
+  `String`, Rust `&str`, C++ `std::string`, Go `[]byte`, JS string, Python `str`); any
+  conversion a parser needs is timed.
+- **Metrics:** median round time, bytes/allocations per event, GC, and retained heap
+  with every parsed event kept alive.
+- **Correctness:** each parser's output must reproduce a SHA-256 digest per workload.
 
-Modes: `typed` (the language's own event struct with owned strings, the headline),
-`borrowed` (strings point into the frame or a buffer), `dom` (the library's generic
-tree), `baseline` (not a parser, e.g. a UTF-8 encode).
+Full contract: [HARNESS.md](HARNESS.md).
 
-## Corpus
+**Corpus:** `corpus/nostr-2024-startup.ndjson.gz`, 31,161 unique events (27 MB) from an
+Amethyst startup session in 2024, raw bytes as received, sliced by `corpus/prepare.py`
+into `all`, `notes`, `reactions`, `dms`, `giftwraps`, `metadata`, `zaps` and `lists`.
 
-`corpus/nostr-2024-startup.ndjson.gz` holds 31,161 unique real events (27 MB
-uncompressed) from an Amethyst startup session in 2024, one per line, raw bytes as
-received (de-duplicated from Quartz's test fixture `nostr_vitor_startup_data.json.gz`).
-`corpus/prepare.py` slices them into workloads by event shape and computes each
-workload's reference digest:
-
-| workload | events | avg bytes | what |
-|---|---:|---:|---|
-| all | 31,161 | 866 | the real kind mix |
-| notes | 3,568 | 904 | kind 1 |
-| reactions | 2,259 | 558 | kind 7 |
-| dms | 9,600 | 640 | kind 4, base64 content |
-| giftwraps | 1,614 | 1,700 | kind 1059, one long NIP-44 payload |
-| metadata | 268 | 876 | kind 0, escaped JSON content |
-| zaps | 1,270 | 2,134 | kind 9735, escaped JSON in a tag |
-| lists | 40 | 8,529 | contact/mute/relay lists, tag-heavy |
-
-## Layout
-
-| dir | harness | notes |
-|---|---|---|
-| `jvm/` | standalone Gradle project (Kotlin, one JVM fork per parser), Quartz from Maven Central or a local Amethyst checkout (`QUARTZ_DIR=…`) | Quartz's own paths + Jackson, kotlinx, Gson, Moshi, fastjson2, DSL-JSON, simdjson-java, jsoniter (Java/Scala), Parsson, minimal-json, json-smart, org.json; `quartz-loop*` rows break `quartz-jackson` down |
-| `rust/` | Cargo | serde_json, simd-json, sonic-rs, jiter, simdjson-rust, miniserde, nanoserde, … |
-| `cpp/` | CMake, deps fetched into `.cache/` | simdjson, yyjson, RapidJSON, glaze, Boost.JSON, nlohmann, sajson, cJSON, json-c, Jansson, jsmn |
-| `go/` | Go module, one process per parser | stdlib, json/v2, sonic, goccy, easyjson, jsoniter, segmentio, fastjson, simdjson-go, go-nostr, fiatjaf.com/nostr, … |
-| `node/` | one script for Node, Bun and Deno | `JSON.parse`, Bun.JSONL, simdjson addon, … |
-| `python/` | venv | json, orjson, msgspec, ujson, pysimdjson, jiter, yyjson, … |
-
-Each directory's README lists its parsers with versions and licenses. Licenses are
-permissive except Parsson (EPL-2.0 / GPL-2.0 with Classpath exception) in the JVM
-harness. Toolchains used for the reference run: JDK 21, Rust 1.97, GCC 13 + CMake,
-Go 1.24, Node 22 (Bun and Deno come from npm), Python 3.13.
-
-## Caveats
-
-- Numbers are from a server CPU with HotSpot, not ART on a phone. Rankings between JVM
-  libraries usually carry over; ratios may not. simdjson-java (needs the JDK Vector API)
-  and jsoniter-scala (needs the Scala runtime) cannot ship on Android anyway.
-- The workload line is a bare event, not the `["EVENT", sub, {…}]` relay frame; the
-  wrapper adds ~30 bytes and one array level.
-- Retained memory depends on how much the kept set repeats itself (same authors, same
-  tagged ids); the `all` workload is a real client session, so it is the realistic case.
+**Caveats:** HotSpot on a server CPU, not ART on a phone; bare events, not
+`["EVENT", sub, …]` frames; at default settings the 27 MB `all` workload is noisy for
+some JVM rows, so compare fine differences on the per-kind workloads in the report.
