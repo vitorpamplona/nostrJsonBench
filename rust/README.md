@@ -11,8 +11,13 @@ rust/run.sh --list                  # parser ids
 `run.sh` builds with `RUSTFLAGS="-C target-cpu=native"` and the release profile
 (`lto = "fat"`, `codegen-units = 1`), then passes every HARNESS.md flag through. Everything
 runs in one process, single-threaded. Allocations come from a counting `#[global_allocator]`
-around `System` (`src/alloc.rs`). A `realloc` counts as one allocation of the new size, and
-memory C++ allocates itself (simdjson-rust) is not counted. Versions and licenses come
+around `System` (`src/alloc.rs`). `allocs_per_event` counts heap blocks created: every `alloc`,
+plus every `realloc` that moves the block (one new allocation); a `realloc` the system allocator
+grows in place creates nothing (on `reactions` that took nanoserde from 36.4 to 28.5
+allocs/event, tinyjson from 52.0 to 43.6 and json-rust from 15.9 to 15.5; the rest moved by
+under 0.05). Bytes still count the full new size of every
+`realloc`. Memory C++ allocates itself (simdjson-rust) is not counted. Each row's `objects_note`
+says this. Versions and licenses come
 from `cargo metadata`, read at build time (`build.rs`).
 
 ## Input: the text frame
@@ -40,7 +45,14 @@ line into a `String` before timing (validated once, untimed) and every parser st
 After timing, `retained_bytes_per_event` parses every event once more and keeps every result in
 a `Vec` (allocated up front, so its own buffer is not counted, but each result's inline `size_of::<T>()` is added, as the JVM and C++ count the event object itself). The allocator also counts freed
 bytes (`dealloc` and the old size of a `realloc`), and the figure is live bytes (allocated -
-freed) after the pass minus before it, per event. It is reported for:
+freed) after the pass minus before it, per event. `retained_objects_per_event` comes from the
+same pass: the allocator also keeps a live-block count (+1 per `alloc`, -1 per `dealloc`, a
+`realloc` keeps it), and the figure is live blocks after minus before, per event. It counts heap
+blocks only: the result stored inline in the `Vec` (the `Event` struct) is not one, and an empty
+`String` or `Vec` owns none. An owned `Event` therefore retains 4 strings + 1 `tags` `Vec` + per
+tag 1 `Vec` and its non-empty values: 20.83 blocks/event on `notes` (4.69 tags, 11.18 non-empty
+values), exactly what every typed row reports there; DOM rows that pool their nodes (`sonic_rs::Value`'s
+arena) keep far fewer. Garbage is `allocs_per_event` minus this. Both are reported for:
 
 - every `typed` row (the owned `Event`; serde-driven rows grow `tags` by doubling, so they keep
   more than simd-json/simdjson, which know each array's length);

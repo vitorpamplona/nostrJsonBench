@@ -297,7 +297,8 @@ fn main() {
                 "ns_per_event": null, "mb_per_s": null, "events_per_s": null,
                 "alloc_bytes_per_event": null, "allocs_per_event": null,
                 "gc_count": null, "gc_ms": null,
-                "retained_bytes_per_event": null,
+                "retained_bytes_per_event": null, "retained_objects_per_event": null,
+                "objects_note": objects_note(m),
             });
             if v.ok {
                 let t = measure(p.as_mut(), &lines, &a);
@@ -328,15 +329,23 @@ fn main() {
                 );
                 o.insert("allocs_per_event".into(), json!(round2(t.allocs as f64 / parsed)));
                 let retained = p.retained(&lines);
-                o.insert("retained_bytes_per_event".into(), json!(retained.map(round2)));
+                o.insert(
+                    "retained_bytes_per_event".into(),
+                    json!(retained.map(|r| round2(r.bytes))),
+                );
+                o.insert(
+                    "retained_objects_per_event".into(),
+                    json!(retained.map(|r| round2(r.objects))),
+                );
                 eprintln!(
-                    "{name:<10} {:<28} {:>9.1} MB/s {:>8.1} ns/ev {:>8.1} B/ev {:>6.2} allocs/ev {:>8} kept B/ev  ({n} rounds)",
+                    "{name:<10} {:<28} {:>9.1} MB/s {:>8.1} ns/ev {:>8.1} B/ev {:>6.2} allocs/ev {:>8} kept B/ev {:>6} kept objs/ev  ({n} rounds)",
                     m.id,
                     bytes as f64 / (median / 1e9) / 1e6,
                     median / events as f64,
                     t.alloc_bytes as f64 / parsed,
                     t.allocs as f64 / parsed,
-                    retained.map_or("-".to_string(), |r| format!("{r:.1}"))
+                    retained.map_or("-".to_string(), |r| format!("{:.1}", r.bytes)),
+                    retained.map_or("-".to_string(), |r| format!("{:.2}", r.objects))
                 );
             } else {
                 eprintln!(
@@ -351,6 +360,20 @@ fn main() {
     }
     write_out(&a.out, &doc);
     eprintln!("wrote {}", a.out.display());
+}
+
+/// How `allocs_per_event` and `retained_objects_per_event` were counted for this row.
+fn objects_note(m: &parsers::Meta) -> String {
+    let mut s = String::from(
+        "heap blocks from the counting #[global_allocator]: every alloc is one object, a realloc \
+         that moves is one new allocation and one that grows in place is none; retained objects \
+         count only the blocks a kept result owns, not the result stored inline in the keep Vec \
+         (an empty String or Vec owns no block)",
+    );
+    if m.library == "simdjson-rust" {
+        s.push_str("; simdjson-rust's C++ allocations (its parser buffers) are not counted");
+    }
+    s
 }
 
 fn round2(x: f64) -> f64 {
