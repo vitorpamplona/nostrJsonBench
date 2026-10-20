@@ -222,9 +222,9 @@ def digest_event(h, e):
 
 # ------------------------------------------------------------------ timed rounds
 
-def make_round(parse, access):
-    # One closure per access style so the loop body has no extra call for the fold. A
-    # round takes its inputs as an argument because every round gets fresh str objects.
+def make_burst(parse, access):
+    # One closure per access style so the loop body has no extra call for the fold. It
+    # parses one burst of frames (HARNESS.md "Arrival"), one parse per frame.
     if access == "dict":
         def rnd(inputs):
             s = 0
@@ -259,16 +259,33 @@ def make_round(parse, access):
 
 
 def fresh_frames(raw):
-    """New str objects for every line, as a socket hands over a new str per frame.
-
-    CPython caches a str's UTF-8 form on the str the first time the C API asks for it
-    (PyUnicode_AsUTF8AndSize: orjson, msgspec, rapidjson, pysimdjson and cysimdjson do;
-    the stdlib json, ujson and simplejson read the code units and do not). Rounds over the
-    same str objects would get that encode for free from round 2 on, so every round,
-    warm-up included, runs on a fresh list built outside the timer. ASCII-only strs have
-    no cache: their UTF-8 is their storage.
-    """
+    """New str objects for every line (verify and the retained pass; untimed)."""
     return [b.decode("utf-8") for b in raw]
+
+
+def run_round(bursts, burst_fn, gct, clock):
+    """One round in bursts (HARNESS.md "Arrival"): returns (timed ns, sink).
+
+    For each burst: untimed, decode the burst's lines into new strs, as websockets/aiohttp
+    hand an app a newly decoded str per text frame; timed, parse them; then drop them.
+    New strs matter beyond realism: CPython caches a str's UTF-8 form on the str the first
+    time the C API asks for it (PyUnicode_AsUTF8AndSize: orjson, msgspec, rapidjson,
+    pysimdjson and cysimdjson do; json, ujson and simplejson do not), so reused strs would
+    give those parsers the encode for free. The GC timer is only active around the timed
+    part, so collections while decoding or dropping frames are not counted.
+    """
+    total = 0
+    sink = 0
+    for chunk in bursts:
+        frames = [b.decode("utf-8") for b in chunk]
+        gct.active = True
+        t0 = clock()
+        sink += burst_fn(frames)
+        t = clock() - t0
+        gct.active = False
+        total += t
+        del frames
+    return total, sink
 
 
 def count_result_objects(roots):
@@ -437,35 +454,30 @@ def run_child(opts, workloads):
                 row["error"] = f"digest mismatch: {digest} != {w['digest']}"
             continue
 
-        rnd = make_round(parse, p["access"])
+        burst_fn = make_burst(parse, p["access"])
+        bursts = [raw[i:i + opts.burst] for i in range(0, len(raw), opts.burst)]
         clock = time.perf_counter_ns
         sink = 0
+        # warm-up: the same burst rounds, for --warmup-ms of wall time
         end = clock() + opts.warmup_ms * 1_000_000
         while True:
-            sink += rnd(fresh_frames(raw))
+            sink += run_round(bursts, burst_fn, gct, clock)[1]
             if clock() >= end:
                 break
 
-        # Each round is timed on its own, with a fresh str list built (and the previous one
-        # freed) between rounds, outside the clock; min-time counts timed rounds only.
+        # A round's time is the sum of its bursts' timed parts; min-time counts that only.
         times = []
         gct.count = gct.ns = 0
         timed = 0
         min_ns = opts.min_time_ms * 1_000_000
-        inputs = None
         while len(times) < 10_000:
-            inputs = None
-            inputs = fresh_frames(raw)
-            gct.active = True
-            t0 = clock()
-            sink += rnd(inputs)
-            t = clock() - t0
-            gct.active = False
+            t, s = run_round(bursts, burst_fn, gct, clock)
+            sink += s
             times.append(t)
             timed += t
             if len(times) >= opts.min_rounds and timed >= min_ns:
                 break
-        del inputs
+        del bursts
         sink_all += sink
 
         times.sort()
@@ -516,12 +528,15 @@ def parse_args(argv):
     ap.add_argument("--warmup-ms", type=int, default=1000)
     ap.add_argument("--min-time-ms", type=int, default=2000)
     ap.add_argument("--min-rounds", type=int, default=5)
+    ap.add_argument("--burst", type=int, default=64)
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--child")
     o = ap.parse_args(argv)
     if o.quick:
         o.warmup_ms, o.min_time_ms, o.min_rounds = 200, 300, 3
+    if o.burst < 1:
+        ap.error("--burst must be >= 1")
     o.corpus = o.corpus.resolve()
     o.out = o.out.resolve()
     return o
@@ -561,7 +576,7 @@ def main(argv):
 
     pass_args = ["--corpus", str(opts.corpus), "--workloads", ",".join(w["name"] for w in workloads),
                  "--warmup-ms", str(opts.warmup_ms), "--min-time-ms", str(opts.min_time_ms),
-                 "--min-rounds", str(opts.min_rounds)]
+                 "--min-rounds", str(opts.min_rounds), "--burst", str(opts.burst)]
     results = []
     for p in parsers:
         print(f"[python] {p['id']}", file=sys.stderr)
@@ -588,7 +603,8 @@ def main(argv):
         "language": "Python",
         "runtime": f"{PY} ({platform.python_implementation()}, {platform.python_compiler()})",
         "host": host_info(),
-        "settings": {"warmup_ms": opts.warmup_ms, "min_time_ms": opts.min_time_ms, "min_rounds": opts.min_rounds},
+        "settings": {"warmup_ms": opts.warmup_ms, "min_time_ms": opts.min_time_ms, "min_rounds": opts.min_rounds,
+                     "burst": opts.burst},
         "corpus_fingerprint": manifest["fingerprint"],
         "results": results,
     }

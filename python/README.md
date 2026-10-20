@@ -29,18 +29,20 @@ The old `json-stdlib-bytes` and `baseline-utf8-decode` rows were dropped (they s
 from bytes), and orjson, msgspec and the simdjson bindings now take the `str` instead of
 bytes. `baseline-utf8-encode` is the `s.encode()` step alone.
 
-**Fresh `str` objects every round.** CPython caches a `str`'s UTF-8 form on the object the
-first time the C API asks for it (`PyUnicode_AsUTF8AndSize`). orjson, msgspec, rapidjson,
-pysimdjson and cysimdjson do (checked with `sys.getsizeof` before and after one parse);
-json, ujson, simplejson and `str.encode` do not. Rounds over the same `str` objects would
-give those parsers the encode for free from the second parse on, while a socket hands over
-a new `str` per frame. So every round, warm-up included, runs on a new list of `str`s
-decoded from the raw lines outside the timer, and each round is timed on its own
-(`--min-time-ms` counts timed rounds only). ASCII-only strings have no cache to fill, since
-their UTF-8 is their storage; on the `all` workload 7% of the lines (10% of the bytes)
-are non-ASCII, so the effect is bounded; a one-off check on this shared machine was too
-noisy to size it (orjson 2012 against 2382 ns/event reused vs fresh, msgspec the other way
-round).
+**Arrival: fresh `str` frames in bursts.** A round walks the workload in bursts of
+`--burst` frames (default 64; `--quick` keeps it). For each burst, outside the timer, the
+lines' UTF-8 bytes are decoded with `bytes.decode('utf-8')` into new `str`s, as
+`websockets` and aiohttp hand them over. Then the burst is parsed under
+`time.perf_counter_ns`, one parse per frame, and the frames are dropped. A round's time
+is the sum of its bursts; warm-up runs the same rounds, and `--min-time-ms` counts timed
+time only. Verify, the digest and the retained pass parse fresh `str`s too, untimed.
+
+New `str`s matter here: CPython caches a `str`'s UTF-8 form on the object the first time
+the C API asks for it (`PyUnicode_AsUTF8AndSize`). orjson, msgspec, rapidjson, pysimdjson
+and cysimdjson do (checked with `sys.getsizeof` before and after one parse); json, ujson,
+simplejson and `str.encode` do not. Reused `str`s would give those parsers the encode for
+free. ASCII-only strings have no cache to fill, since their UTF-8 is their storage; on
+the `all` workload 7% of the lines (10% of the bytes) are non-ASCII.
 
 `websockets` can also hand over the raw bytes of a text frame (`recv(decode=False)`),
 which would make bytes free for jiter and yyjson; that is not the default path and is not
@@ -78,7 +80,8 @@ own sources.
 ## Memory and GC
 
 - `gc_count` / `gc_ms`: `gc.callbacks` counts the cyclic collector's runs and times them
-  during the timed rounds. Expect 0. CPython frees parsed events by reference counting as
+  during the timed part of each burst only (not while frames are decoded or dropped).
+  Expect 0. CPython frees parsed events by reference counting as
   soon as the loop drops them, so the gen-0 allocation counter never reaches its
   threshold.
 - `alloc_bytes_per_event`, `allocs_per_event`: null. CPython has no cumulative
