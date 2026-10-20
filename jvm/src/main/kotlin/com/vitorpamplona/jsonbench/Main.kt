@@ -232,6 +232,7 @@ object Child {
         row["mode"] = spec.mode
         row["input"] = spec.input
         row["notes"] = spec.notes
+        row["variant"] = spec.variant
         row["workload"] = w.name
         row["events"] = w.events
         row["bytes"] = w.bytes
@@ -402,6 +403,7 @@ object Parent {
             "mode" to spec.mode,
             "input" to spec.input,
             "notes" to spec.notes,
+            "variant" to spec.variant,
             "workload" to w.name,
             "events" to w.events,
             "bytes" to w.bytes,

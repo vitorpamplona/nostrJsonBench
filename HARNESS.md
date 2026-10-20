@@ -180,6 +180,12 @@ Every harness exposes the same flags (through its own launcher, e.g. `run.sh`):
 }
 ```
 
+Optional `"variant": true` marks a diagnostic row: a breakdown of another parser, or an
+input path that isn't the frame type (e.g. Node's `Buffer`). The report ranks **one row per
+library and mode**: the library's fastest verified non-variant row on `all`, kept for every
+workload. Its other rows (another entry point, another adaptation) and all variant rows are
+listed under "Variants", next to that headline row.
+
 `parser` ids are unique within a harness, lowercase, `<library>-<variant>`. Record the
 library's resolved version and its license (SPDX) as found in its own LICENSE file or
 package metadata.

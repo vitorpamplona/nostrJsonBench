@@ -95,6 +95,7 @@ const PARSERS = [
     mode: 'typed',
     input: 'bytes',
     frame: 'buffer',
+    variant: true, // starts from a Buffer, not the string a text frame is: never a library's headline row
     notes: WS_EXTRA + 'node:buffer Buffer -> toString("utf8") -> JSON.parse; the decode is timed',
     meta: () => engineMeta(),
     load: () => (b) => JSON.parse(b.toString('utf8')),
@@ -435,6 +436,7 @@ async function runChild(opts, manifest, workloads) {
       mode: P.mode,
       input: P.input,
       notes: P.notes,
+      variant: P.variant === true,
       workload: w.name,
       events: w.events,
       bytes: w.bytes,
@@ -616,7 +618,7 @@ async function main() {
       for (const w of workloads) {
         results.push({
           parser: p.id, library: p.library, version: null, license: null, mode: p.mode, input: p.input,
-          notes: p.notes, workload: w.name, events: w.events, bytes: w.bytes, digest_ok: false, errors: 0,
+          notes: p.notes, variant: p.variant === true, workload: w.name, events: w.events, bytes: w.bytes, digest_ok: false, errors: 0,
           error: why, rounds: 0, median_ns: null, min_ns: null, p90_ns: null, ns_per_event: null, mb_per_s: null,
           events_per_s: null, alloc_bytes_per_event: null, allocs_per_event: null, gc_count: null, gc_ms: null,
           retained_bytes_per_event: null,

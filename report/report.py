@@ -138,8 +138,33 @@ def main():
         L.append("")
 
     headline = "all" if "all" in workloads else (workloads[0] if workloads else None)
+
+    # One row per library and mode: the library's fastest verified way from the frame type to
+    # an event, picked on the headline workload and kept for every workload. The library's
+    # other rows, and rows a harness flags `variant` (breakdowns, a non-frame input), are
+    # listed under "Variants" instead of competing in the rankings.
+    def nspe_of(r):
+        return r["median_ns"] / r["events"]
+
+    groups = {}
+    for r in ok:
+        if r.get("mode") == "baseline":
+            continue
+        key = (r["harness"], r["language"], r.get("library") or r["parser"], r.get("mode"))
+        groups.setdefault(key, {}).setdefault(r["parser"], {})[r["workload"]] = r
+    primary = {}  # (harness, parser) -> group key
+    for key, parsers in groups.items():
+        candidates = [(p, per) for p, per in parsers.items() if not any(x.get("variant") for x in per.values())]
+        if not candidates:
+            continue
+        best = min(candidates, key=lambda item: nspe_of(item[1][headline]) if headline in item[1] else float("inf"))
+        primary[(key[0], best[0])] = key
+
+    def is_primary(r):
+        return r.get("mode") == "baseline" or (r["harness"], r["parser"]) in primary
+
     for mode in ("typed", "borrowed", "dom", "baseline"):
-        mrows = [r for r in ok if r.get("mode") == mode and r["workload"] == headline]
+        mrows = [r for r in ok if r.get("mode") == mode and r["workload"] == headline and is_primary(r)]
         if not mrows:
             continue
         mrows.sort(key=lambda r: -(r.get("mb_per_s") or 0))
@@ -160,7 +185,7 @@ def main():
     # Matrix: every verified parser x workload, MB/s, plus geometric mean of × quartz.
     keyed = {}
     for r in ok:
-        if r.get("mode") == "baseline":
+        if r.get("mode") == "baseline" or not is_primary(r):
             continue
         keyed.setdefault((r["language"], r["parser"], r.get("mode")), {})[r["workload"]] = r
     if keyed:
@@ -181,6 +206,35 @@ def main():
             cells = [fmt(per[w].get("mb_per_s")) if w in per else "" for w in workloads]
             g = score(((lang, parser, mode), per))
             L.append(f"| {lang} | `{parser}` | {mode} | " + " | ".join(cells) + f" | {fmt(g, 2) + '×' if g else '–'} |")
+        L.append("")
+
+    # Variants: every other verified row of a library that has a headline row, on the headline
+    # workload, next to that headline row.
+    vrows = []
+    for key, parsers in groups.items():
+        lead = next((p for p in parsers if (key[0], p) in primary), None)
+        lead_row = parsers[lead].get(headline) if lead else None
+        for p, per in parsers.items():
+            if p != lead and headline in per:
+                vrows.append((key, p, per[headline], lead, lead_row))
+    if vrows:
+        L.append(f"## Variants — `{headline}` workload\n")
+        L.append(
+            "Other ways the same library was run (another entry point or input path) and rows a "
+            "harness flags as variants (breakdowns, an input that isn't the frame type). Each "
+            "library's headline row above is its fastest; × is this row's speed relative to it, "
+            "– when the row has no headline row of its own.\n"
+        )
+        L.append("| language | library | mode | headline row | variant | input | ns/event | × headline |")
+        L.append("|---|---|---|---|---|---|---:|---:|")
+        vrows.sort(key=lambda v: (v[0][1], v[0][2], v[0][3], nspe_of(v[2])))
+        for key, p, r, lead, lr in vrows:
+            lead_cell = f"`{lead}`" if lead else "–"
+            ratio = f"{fmt(nspe_of(lr) / nspe_of(r), 2)}×" if lr else "–"
+            L.append(
+                f"| {key[1]} | {key[2]} | {key[3]} | {lead_cell} | `{p}` | {r.get('input', '')} "
+                f"| {fmt(nspe_of(r))} | {ratio} |"
+            )
         L.append("")
 
     # The interning trade-off: where Quartz spends a parse, what interning costs and saves,
