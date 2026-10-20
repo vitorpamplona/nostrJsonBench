@@ -36,7 +36,7 @@ timed). Its other paths are under "Variants" in the report.
 | Jackson streaming | encode + byte API | 1,338 | 3,282 | 1,370 |
 | jsoniter (Java) | encode + byte API | 1,345 | 2,886 | 1,381 |
 | DSL-JSON | encode + byte API | 1,354 | 2,716 | 1,381 |
-| **Quartz, Jackson path** | String API | **1,620** | 2,332 | 1,376 (900 once LocalCache shares its strings) |
+| **Quartz, Jackson path** | String API | **1,620** | 2,332 | 1,376 |
 | Quartz, kotlinx path | String API | 1,643 | 4,476 | 1,376 |
 | kotlinx.serialization | String API | 1,871 | 2,943 | 1,370 |
 | Moshi | okio `writeUtf8` | 1,936 | 3,067 | 1,370 |
@@ -48,10 +48,10 @@ neither ships on Android.
 
 **Findings**
 
-- **Quartz** dropped from 5,585 to 1,620 ns/event when
-  [amethyst#4583](https://github.com/vitorpamplona/amethyst/pull/4583) moved
-  `String.intern()` from the parser to LocalCache entry. Interning still cuts a kept
-  event's memory by 35% (1,376 → 900 B), but only kept events pay for it now.
+- **Quartz** went from 5,585 to 1,620 ns/event when
+  [amethyst#4583](https://github.com/vitorpamplona/amethyst/pull/4583) took
+  `String.intern()` out of its parser. Nearly all of what is left is Jackson's own
+  tokenizer: databind and `EventFactory` add 1–15% depending on kind.
 - **Borrowing and DOMs** go further: simdjson 2.0 GB/s and sonic-rs 1.7 GB/s with strings
   pointing into the frame, simdjson's DOM 3.2 GB/s.
 - **Go** spans 7× (sonic 1,174 MB/s vs `encoding/json` 161); the Nostr-specific decoders
