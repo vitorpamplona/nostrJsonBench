@@ -42,75 +42,55 @@ MB/s is input bytes per second of median round (higher is better). Single thread
 | 8 | C/C++ | `yyjson-typed` | string | 1,124 | 770 | 2.10× | 4,323 | 12.1 | – | 1,262 | MIT |
 | 9 | Rust | `simd_json-typed` | bytes-copy | 1,117 | 776 | 2.09× | 2,705 | 15.3 | – | 1,109 | Apache-2.0 OR MIT |
 | 10 | Rust | `simdjson_rust-typed` | bytes-copy | 1,079 | 803 | 2.02× | 973 | 14.0 | – | 1,109 | Apache-2.0 |
-| 11 | Rust | `jiter-serde-typed` | string | 1,070 | 810 | 2.00× | 1,644 | 15.5 | – | 1,281 | MIT |
-| 12 | Kotlin/Java (JVM) | `jsoniter-scala` | string (readFromString) | 1,036 | 836 | 1.94× | 2,772 | – | 5 / 12 ms | 1,381 | MIT |
-| 13 | Kotlin/Java (JVM) | `fastjson2-reflect-string` | string | 957 | 905 | 1.79× | 3,701 | – | 6 / 13 ms | 1,389 | Apache-2.0 |
-| 14 | Go | `goccy-typed` | bytes-copy | 924 | 938 | 1.73× | 1,231 | 5.1 | 91 / 8 ms | 1,201 | MIT |
-| 15 | JavaScript (Deno) | `json-parse-string` | string | 877 | 988 | 1.64× | 1,229 | – | – | 1,229 | BSD-3-Clause |
-| 16 | C/C++ | `rapidjson-sax-typed` | string | 860 | 1,008 | 1.61× | 1,249 | 14.4 | – | 1,289 | MIT |
-| 17 | Go | `fiatjaf-nostr-typed` | bytes | 832 | 1,041 | 1.56× | 1,169 | 10.0 | 81 / 7 ms | 1,140 | Unlicense |
-| 18 | Go | `sonic-typed-std` | bytes→string | 824 | 1,052 | 1.54× | 2,123 | 18.1 | 143 / 13 ms | 1,107 | Apache-2.0 |
-| 19 | Python | `msgspec-typed` | string | 822 | 1,054 | 1.54× | – | – | 0 / 0 ms | 1,712 | BSD-3-Clause |
-| 20 | Kotlin/Java (JVM) | `fastjson2-reflect-bytes` | string→bytes | 797 | 1,087 | 1.49× | 4,480 | – | 6 / 14 ms | 1,389 | Apache-2.0 |
-| 21 | Kotlin/Java (JVM) | `fastjson2-reader` | string→bytes | 791 | 1,096 | 1.48× | 3,096 | – | 3 / 8 ms | 1,389 | Apache-2.0 |
-| 22 | Go | `jx-typed` | bytes | 780 | 1,111 | 1.46× | 1,689 | 14.4 | 110 / 9 ms | 1,193 | MIT |
-| 23 | Go | `go-nostr-typed` | bytes | 764 | 1,134 | 1.43× | 1,338 | 13.0 | 86 / 8 ms | 1,310 | MIT |
-| 24 | JavaScript (Node) | `json-parse-string` | string | 763 | 1,135 | 1.43× | – | – | 128 / 32 ms | 1,234 | BSD-3-Clause |
-| 25 | Python | `orjson` | string | 762 | 1,136 | 1.43× | – | – | 0 / 0 ms | 1,840 | MPL-2.0 AND (Apache-2.0 OR MIT) |
-| 26 | Go | `fastjson-typed` | bytes-copy | 760 | 1,140 | 1.42× | 1,058 | 12.8 | 66 / 5 ms | 1,058 | MIT |
-| 27 | Rust | `miniserde-typed` | string | 756 | 1,146 | 1.41× | 2,162 | 21.2 | – | 1,281 | MIT OR Apache-2.0 |
-| 28 | Go | `easyjson-typed` | bytes | 746 | 1,161 | 1.40× | 1,223 | 13.5 | 75 / 8 ms | 1,168 | MIT |
-| 29 | Python | `msgspec-generic` | string | 737 | 1,175 | 1.38× | – | – | 0 / 0 ms | 1,896 | BSD-3-Clause |
-| 30 | JavaScript (Bun) | `bun-jsonl-string` | string | 735 | 1,178 | 1.37× | – | – | – | 1,031 | MIT |
-| 31 | JavaScript (Bun) | `json-parse-string` | string | 696 | 1,245 | 1.30× | – | – | – | 1,031 | BSD-2-Clause |
-| 32 | Python | `pysimdjson-recursive` | string | 672 | 1,289 | 1.26× | – | – | 0 / 0 ms | 2,074 | MIT |
-| 33 | Rust | `sonic_rs-lazy` | string | 660 | 1,313 | 1.23× | 2,019 | 24.2 | – | 1,281 | Apache-2.0 |
-| 34 | Python | `jiter` | string→bytes | 654 | 1,325 | 1.22× | – | – | 0 / 0 ms | 1,604 | MIT |
-| 35 | Kotlin/Java (JVM) | `jackson-streaming-bytes` | string→bytes | 647 | 1,338 | 1.21× | 3,282 | – | 2 / 5 ms | 1,370 | Apache-2.0 |
-| 36 | Kotlin/Java (JVM) | `jsoniter-iterator` | string→bytes | 644 | 1,345 | 1.20× | 2,886 | – | 2 / 5 ms | 1,381 | MIT |
-| 37 | Kotlin/Java (JVM) | `dsljson-reflect` | string→bytes | 640 | 1,354 | 1.20× | 2,716 | – | 2 / 6 ms | 1,381 | BSD-3-Clause |
-| 38 | Kotlin/Java (JVM) | `dsljson-bytes` | string→bytes | 629 | 1,377 | 1.18× | 2,542 | – | 2 / 5 ms | 1,381 | BSD-3-Clause |
-| 39 | Rust | `hifijson-serde-typed` | string | 613 | 1,413 | 1.15× | 1,655 | 15.7 | – | 1,281 | MIT |
-| 40 | JavaScript (Node) | `json-parse-buffer` | bytes | 606 | 1,430 | 1.13× | – | – | 186 / 37 ms | 1,234 | BSD-3-Clause |
-| 41 | Python | `yyjson` | string→bytes | 596 | 1,453 | 1.11× | – | – | 0 / 0 ms | 2,089 | MIT |
-| 42 | C/C++ | `boostjson-typed` | string | 588 | 1,474 | 1.10× | 2,438 | 28.3 | – | 1,260 | BSL-1.0 |
-| 43 | JavaScript (Deno) | `json-parse-buffer` | bytes | 581 | 1,491 | 1.09× | 2,185 | – | – | 1,229 | BSD-3-Clause |
-| 44 | JavaScript (Bun) | `bun-jsonl-bytes` | string→bytes | 569 | 1,523 | 1.06× | – | – | – | 1,031 | MIT |
-| 45 | JavaScript (Bun) | `json-parse-buffer` | bytes | 541 | 1,601 | 1.01× | – | – | – | 1,031 | BSD-2-Clause |
-| 46 | Kotlin/Java (JVM) | `quartz-jackson` | string | 535 | 1,620 | 1.00× | 2,332 | – | 0 / 0 ms | 1,376 | Apache-2.0 AND MIT |
-| 47 | Kotlin/Java (JVM) | `quartz-kotlinx` | string | 527 | 1,643 | 0.99× | 4,476 | – | 4 / 8 ms | 1,376 | Apache-2.0 AND MIT |
-| 48 | Go | `jsoniter-typed-compat` | bytes | 489 | 1,771 | 0.91× | 1,717 | 19.0 | 69 / 6 ms | 1,080 | MIT |
-| 49 | Go | `jsoniter-typed` | bytes | 486 | 1,783 | 0.91× | 1,717 | 19.0 | 70 / 6 ms | 1,080 | MIT |
-| 50 | Kotlin/Java (JVM) | `kotlinx-typed` | string | 463 | 1,871 | 0.87× | 2,943 | – | 1 / 3 ms | 1,370 | Apache-2.0 |
-| 51 | Kotlin/Java (JVM) | `moshi-streaming` | string (okio writeUtf8) | 447 | 1,936 | 0.84× | 3,067 | – | 2 / 9 ms | 1,370 | Apache-2.0 |
-| 52 | Python | `ujson` | string | 446 | 1,944 | 0.83× | – | – | 0 / 0 ms | 2,129 | BSD-3-Clause AND TCL |
-| 53 | Kotlin/Java (JVM) | `quartz-loop-plain` | string | 440 | 1,967 | 0.82× | 2,254 | – | 1 / 2 ms | 1,370 | Apache-2.0 AND MIT |
-| 54 | Kotlin/Java (JVM) | `kotlinx-stream` | string→bytes | 435 | 1,994 | 0.81× | 4,467 | – | 2 / 4 ms | 1,382 | Apache-2.0 |
-| 55 | Python | `python-rapidjson` | string | 429 | 2,020 | 0.80× | – | – | 0 / 0 ms | 2,127 | MIT |
-| 56 | Kotlin/Java (JVM) | `jackson-streaming-string` | string | 401 | 2,159 | 0.75× | 2,076 | – | 1 / 3 ms | 1,370 | Apache-2.0 |
-| 57 | Go | `jsonv2-typed` | bytes | 385 | 2,248 | 0.72× | 1,242 | 13.7 | 39 / 3 ms | 926 | BSD-3-Clause |
-| 58 | Kotlin/Java (JVM) | `quartz-loop` | string | 383 | 2,259 | 0.72× | 2,260 | – | 0 / 0 ms | 1,376 | Apache-2.0 AND MIT |
-| 59 | Go | `segmentio-typed` | bytes | 366 | 2,368 | 0.68× | 1,728 | 14.0 | 54 / 6 ms | 1,578 | MIT |
-| 60 | Rust | `nanoserde-typed` | string | 366 | 2,369 | 0.68× | 2,310 | 39.4 | – | 1,497 | MIT OR Apache-2.0 |
-| 61 | JavaScript (Bun) | `simdjson-parse` | string | 348 | 2,489 | 0.65× | – | – | – | 1,260 | Apache-2.0 |
-| 62 | Kotlin/Java (JVM) | `parsson-streaming` | string | 339 | 2,558 | 0.63× | 2,039 | – | 1 / 3 ms | 1,381 | EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 |
-| 63 | Go | `jsonparser-typed` | bytes | 317 | 2,731 | 0.59× | 1,419 | 13.4 | 38 / 4 ms | 1,191 | MIT |
-| 64 | Python | `json-stdlib` | string | 314 | 2,761 | 0.59× | – | – | 0 / 0 ms | 2,127 | PSF-2.0 |
-| 65 | Python | `simplejson` | string | 282 | 3,073 | 0.53× | – | – | 0 / 0 ms | 2,127 | MIT OR AFL-2.1 |
-| 66 | JavaScript (Deno) | `simdjson-parse` | string | 268 | 3,228 | 0.50× | 1,709 | – | – | 1,701 | Apache-2.0 |
-| 67 | Kotlin/Java (JVM) | `gson-streaming` | string | 262 | 3,309 | 0.49× | 5,127 | – | 1 / 3 ms | 1,381 | Apache-2.0 |
-| 68 | Kotlin/Java (JVM) | `gson-reflect` | string | 257 | 3,370 | 0.48× | 5,397 | – | 2 / 5 ms | 1,382 | Apache-2.0 |
-| 69 | Rust | `struson-typed` | string | 250 | 3,464 | 0.47× | 2,181 | 26.0 | – | 1,408 | MIT OR Apache-2.0 |
-| 70 | Kotlin/Java (JVM) | `quartz-jackson-cacheshare` | string | 226 | 3,841 | 0.42× | 2,332 | – | 0 / 0 ms | 900 | Apache-2.0 AND MIT |
-| 71 | Kotlin/Java (JVM) | `quartz-loop-intern` | string | 180 | 4,826 | 0.34× | 2,260 | – | 0 / 0 ms | 900 | Apache-2.0 AND MIT |
-| 72 | C/C++ | `nlohmann-sax-typed` | string | 166 | 5,205 | 0.31× | 3,964 | 38.2 | – | 1,803 | MIT |
-| 73 | Go | `stdlib-typed` | bytes | 161 | 5,391 | 0.30× | 1,660 | 23.4 | 22 / 2 ms | 1,082 | BSD-3-Clause |
-| 74 | Go | `gjson-typed` | bytes | 157 | 5,504 | 0.29× | 1,832 | 12.3 | 25 / 2 ms | 1,337 | MIT |
-| 75 | C/C++ | `nlohmann-typed` | string | 140 | 6,167 | 0.26× | 5,840 | 67.2 | – | 1,268 | MIT |
-| 76 | JavaScript (Bun) | `streamparser-json` | string | 109 | 7,980 | 0.20× | – | – | – | 1,561 | MIT |
-| 77 | JavaScript (Node) | `streamparser-json` | string | 105 | 8,257 | 0.20× | – | – | 178 / 55 ms | 1,701 | MIT |
-| 78 | JavaScript (Deno) | `streamparser-json` | string | 75 | 11,482 | 0.14× | 12,047 | – | – | 1,701 | MIT |
-| 79 | Kotlin/Java (JVM) | `simdjson-java-schema` | string→bytes-padded | 21 | 41,481 | 0.04× | 62,759 | – | 7 / 17 ms | 1,383 | Apache-2.0 |
+| 11 | Kotlin/Java (JVM) | `jsoniter-scala` | string (readFromString) | 1,036 | 836 | 1.94× | 2,772 | – | 5 / 12 ms | 1,381 | MIT |
+| 12 | Kotlin/Java (JVM) | `fastjson2-reflect-string` | string | 957 | 905 | 1.79× | 3,701 | – | 6 / 13 ms | 1,389 | Apache-2.0 |
+| 13 | Go | `goccy-typed` | bytes-copy | 924 | 938 | 1.73× | 1,231 | 5.1 | 91 / 8 ms | 1,201 | MIT |
+| 14 | JavaScript (Deno) | `json-parse-string` | string | 877 | 988 | 1.64× | 1,229 | – | – | 1,229 | BSD-3-Clause |
+| 15 | C/C++ | `rapidjson-sax-typed` | string | 860 | 1,008 | 1.61× | 1,249 | 14.4 | – | 1,289 | MIT |
+| 16 | Go | `fiatjaf-nostr-typed` | bytes | 832 | 1,041 | 1.56× | 1,169 | 10.0 | 81 / 7 ms | 1,140 | Unlicense |
+| 17 | Python | `msgspec-typed` | string | 822 | 1,054 | 1.54× | – | – | 0 / 0 ms | 1,712 | BSD-3-Clause |
+| 18 | Go | `jx-typed` | bytes | 780 | 1,111 | 1.46× | 1,689 | 14.4 | 110 / 9 ms | 1,193 | MIT |
+| 19 | Go | `go-nostr-typed` | bytes | 764 | 1,134 | 1.43× | 1,338 | 13.0 | 86 / 8 ms | 1,310 | MIT |
+| 20 | JavaScript (Node) | `json-parse-string` | string | 763 | 1,135 | 1.43× | – | – | 128 / 32 ms | 1,234 | BSD-3-Clause |
+| 21 | Python | `orjson` | string | 762 | 1,136 | 1.43× | – | – | 0 / 0 ms | 1,840 | MPL-2.0 AND (Apache-2.0 OR MIT) |
+| 22 | Go | `fastjson-typed` | bytes-copy | 760 | 1,140 | 1.42× | 1,058 | 12.8 | 66 / 5 ms | 1,058 | MIT |
+| 23 | Rust | `miniserde-typed` | string | 756 | 1,146 | 1.41× | 2,162 | 21.2 | – | 1,281 | MIT OR Apache-2.0 |
+| 24 | Go | `easyjson-typed` | bytes | 746 | 1,161 | 1.40× | 1,223 | 13.5 | 75 / 8 ms | 1,168 | MIT |
+| 25 | JavaScript (Bun) | `bun-jsonl-string` | string | 735 | 1,178 | 1.37× | – | – | – | 1,031 | MIT |
+| 26 | JavaScript (Bun) | `json-parse-string` | string | 696 | 1,245 | 1.30× | – | – | – | 1,031 | BSD-2-Clause |
+| 27 | Python | `pysimdjson-recursive` | string | 672 | 1,289 | 1.26× | – | – | 0 / 0 ms | 2,074 | MIT |
+| 28 | Python | `jiter` | string→bytes | 654 | 1,325 | 1.22× | – | – | 0 / 0 ms | 1,604 | MIT |
+| 29 | Kotlin/Java (JVM) | `jackson-streaming-bytes` | string→bytes | 647 | 1,338 | 1.21× | 3,282 | – | 2 / 5 ms | 1,370 | Apache-2.0 |
+| 30 | Kotlin/Java (JVM) | `jsoniter-iterator` | string→bytes | 644 | 1,345 | 1.20× | 2,886 | – | 2 / 5 ms | 1,381 | MIT |
+| 31 | Kotlin/Java (JVM) | `dsljson-reflect` | string→bytes | 640 | 1,354 | 1.20× | 2,716 | – | 2 / 6 ms | 1,381 | BSD-3-Clause |
+| 32 | Rust | `hifijson-serde-typed` | string | 613 | 1,413 | 1.15× | 1,655 | 15.7 | – | 1,281 | MIT |
+| 33 | Python | `yyjson` | string→bytes | 596 | 1,453 | 1.11× | – | – | 0 / 0 ms | 2,089 | MIT |
+| 34 | C/C++ | `boostjson-typed` | string | 588 | 1,474 | 1.10× | 2,438 | 28.3 | – | 1,260 | BSL-1.0 |
+| 35 | Kotlin/Java (JVM) | `quartz-jackson` | string | 535 | 1,620 | 1.00× | 2,332 | – | 0 / 0 ms | 1,376 | Apache-2.0 AND MIT |
+| 36 | Kotlin/Java (JVM) | `quartz-kotlinx` | string | 527 | 1,643 | 0.99× | 4,476 | – | 4 / 8 ms | 1,376 | Apache-2.0 AND MIT |
+| 37 | Go | `jsoniter-typed-compat` | bytes | 489 | 1,771 | 0.91× | 1,717 | 19.0 | 69 / 6 ms | 1,080 | MIT |
+| 38 | Kotlin/Java (JVM) | `kotlinx-typed` | string | 463 | 1,871 | 0.87× | 2,943 | – | 1 / 3 ms | 1,370 | Apache-2.0 |
+| 39 | Kotlin/Java (JVM) | `moshi-streaming` | string (okio writeUtf8) | 447 | 1,936 | 0.84× | 3,067 | – | 2 / 9 ms | 1,370 | Apache-2.0 |
+| 40 | Python | `ujson` | string | 446 | 1,944 | 0.83× | – | – | 0 / 0 ms | 2,129 | BSD-3-Clause AND TCL |
+| 41 | Python | `python-rapidjson` | string | 429 | 2,020 | 0.80× | – | – | 0 / 0 ms | 2,127 | MIT |
+| 42 | Go | `jsonv2-typed` | bytes | 385 | 2,248 | 0.72× | 1,242 | 13.7 | 39 / 3 ms | 926 | BSD-3-Clause |
+| 43 | Go | `segmentio-typed` | bytes | 366 | 2,368 | 0.68× | 1,728 | 14.0 | 54 / 6 ms | 1,578 | MIT |
+| 44 | Rust | `nanoserde-typed` | string | 366 | 2,369 | 0.68× | 2,310 | 39.4 | – | 1,497 | MIT OR Apache-2.0 |
+| 45 | JavaScript (Bun) | `simdjson-parse` | string | 348 | 2,489 | 0.65× | – | – | – | 1,260 | Apache-2.0 |
+| 46 | Kotlin/Java (JVM) | `parsson-streaming` | string | 339 | 2,558 | 0.63× | 2,039 | – | 1 / 3 ms | 1,381 | EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 |
+| 47 | Go | `jsonparser-typed` | bytes | 317 | 2,731 | 0.59× | 1,419 | 13.4 | 38 / 4 ms | 1,191 | MIT |
+| 48 | Python | `json-stdlib` | string | 314 | 2,761 | 0.59× | – | – | 0 / 0 ms | 2,127 | PSF-2.0 |
+| 49 | Python | `simplejson` | string | 282 | 3,073 | 0.53× | – | – | 0 / 0 ms | 2,127 | MIT OR AFL-2.1 |
+| 50 | JavaScript (Deno) | `simdjson-parse` | string | 268 | 3,228 | 0.50× | 1,709 | – | – | 1,701 | Apache-2.0 |
+| 51 | Kotlin/Java (JVM) | `gson-streaming` | string | 262 | 3,309 | 0.49× | 5,127 | – | 1 / 3 ms | 1,381 | Apache-2.0 |
+| 52 | Rust | `struson-typed` | string | 250 | 3,464 | 0.47× | 2,181 | 26.0 | – | 1,408 | MIT OR Apache-2.0 |
+| 53 | C/C++ | `nlohmann-sax-typed` | string | 166 | 5,205 | 0.31× | 3,964 | 38.2 | – | 1,803 | MIT |
+| 54 | Go | `stdlib-typed` | bytes | 161 | 5,391 | 0.30× | 1,660 | 23.4 | 22 / 2 ms | 1,082 | BSD-3-Clause |
+| 55 | Go | `gjson-typed` | bytes | 157 | 5,504 | 0.29× | 1,832 | 12.3 | 25 / 2 ms | 1,337 | MIT |
+| 56 | JavaScript (Bun) | `streamparser-json` | string | 109 | 7,980 | 0.20× | – | – | – | 1,561 | MIT |
+| 57 | JavaScript (Node) | `streamparser-json` | string | 105 | 8,257 | 0.20× | – | – | 178 / 55 ms | 1,701 | MIT |
+| 58 | JavaScript (Deno) | `streamparser-json` | string | 75 | 11,482 | 0.14× | 12,047 | – | – | 1,701 | MIT |
+| 59 | Kotlin/Java (JVM) | `simdjson-java-schema` | string→bytes-padded | 21 | 41,481 | 0.04× | 62,759 | – | 7 / 17 ms | 1,383 | Apache-2.0 |
 
 ## Borrowed: Event whose strings point into the input buffer — `all` workload
 
@@ -134,45 +114,37 @@ MB/s is input bytes per second of median round (higher is better). Single thread
 | 1 | C/C++ | `simdjson-dom` | string→bytes-padded | 3,199 | 271 | 5.98× | 0 | 0.0 | – | – | Apache-2.0 OR MIT |
 | 2 | C/C++ | `yyjson-dom-pool` | string | 2,246 | 386 | 4.20× | 0 | 0.0 | – | – | MIT |
 | 3 | Rust | `sonic_rs-value` | string | 2,037 | 425 | 3.81× | 1,857 | 3.4 | – | 1,873 | Apache-2.0 |
-| 4 | C/C++ | `yyjson-insitu` | bytes-copy | 2,026 | 428 | 3.79× | 2,432 | 1.0 | – | – | MIT |
-| 5 | Go | `fastjson-dom` | bytes-copy | 1,965 | 441 | 3.67× | 0 | 0.0 | 0 / 0 ms | – | MIT |
-| 6 | C/C++ | `yyjson-dom` | string | 1,945 | 445 | 3.64× | 3,302 | 2.0 | – | 3,318 | MIT |
-| 7 | Rust | `simd_json-tape` | bytes-copy | 1,883 | 460 | 3.52× | 0 | 0.0 | – | – | Apache-2.0 OR MIT |
-| 8 | Python | `pysimdjson` | string | 1,679 | 516 | 3.14× | – | – | 0 / 0 ms | – | MIT |
-| 9 | Python | `cysimdjson` | string | 1,586 | 546 | 2.97× | – | – | 0 / 0 ms | – | Apache-2.0 |
-| 10 | C/C++ | `rapidjson-insitu` | bytes-copy | 1,534 | 565 | 2.87× | 66,668 | 6.0 | – | – | MIT |
-| 11 | C/C++ | `boostjson-dom-pool` | string | 1,456 | 595 | 2.72× | 0 | 0.0 | – | – | BSL-1.0 |
-| 12 | C/C++ | `sajson-dom` | string | 1,345 | 644 | 2.51× | 11,116 | 3.0 | – | 9,284 | MIT |
-| 13 | Rust | `jiter-value-scratch` | string | 1,286 | 674 | 2.40× | 1,053 | 9.6 | – | 1,085 | MIT |
-| 14 | Rust | `jiter-value` | string | 1,136 | 763 | 2.12× | 1,811 | 11.2 | – | 1,309 | MIT |
-| 15 | Rust | `serde_json_borrow-value` | string | 1,129 | 767 | 2.11× | 1,889 | 7.5 | – | 1,183 | MIT |
-| 16 | C/C++ | `rapidjson-dom-pool` | string | 1,108 | 782 | 2.07× | 0 | 0.0 | – | – | MIT |
-| 17 | C/C++ | `jsmn-tokens` | string | 1,107 | 782 | 2.07× | 0 | 0.0 | – | – | MIT |
-| 18 | Rust | `simd_json-borrowed` | bytes-copy | 1,066 | 813 | 1.99× | 2,425 | 10.6 | – | – | Apache-2.0 OR MIT |
-| 19 | Rust | `simdjson_rust-dom` | bytes-copy | 1,025 | 846 | 1.92× | 1,172 | 6.0 | – | – | Apache-2.0 |
-| 20 | C/C++ | `boostjson-dom` | string | 876 | 989 | 1.64× | 1,417 | 18.2 | – | 1,626 | BSL-1.0 |
-| 21 | C/C++ | `rapidjson-dom` | string | 869 | 997 | 1.63× | 67,693 | 8.9 | – | 65,792 | MIT |
-| 22 | Go | `simdjson-go-dom` | bytes | 820 | 1,056 | 1.53× | 16 | 1.0 | 1 / 1 ms | – | Apache-2.0 |
-| 23 | Kotlin/Java (JVM) | `simdjson-java-dom` | string→bytes-padded | 805 | 1,076 | 1.50× | 2,390 | – | 2 / 6 ms | – | Apache-2.0 |
-| 24 | Rust | `serde_json-value` | string | 788 | 1,099 | 1.47× | 2,461 | 23.5 | – | 1,978 | MIT OR Apache-2.0 |
-| 25 | Kotlin/Java (JVM) | `fastjson2-dom` | string→bytes | 757 | 1,144 | 1.42× | 3,549 | – | 4 / 10 ms | 1,893 | Apache-2.0 |
-| 26 | Rust | `simd_json-owned-value` | bytes-copy | 755 | 1,148 | 1.41× | 3,206 | 27.9 | – | 1,498 | Apache-2.0 OR MIT |
-| 27 | Rust | `json-dom` | string | 687 | 1,260 | 1.29× | 3,993 | 16.4 | – | 2,344 | MIT OR Apache-2.0 |
-| 28 | Kotlin/Java (JVM) | `jackson-tree` | string→bytes | 625 | 1,386 | 1.17× | 4,316 | – | 4 / 10 ms | 2,245 | Apache-2.0 |
-| 29 | Rust | `hifijson-value` | string | 615 | 1,408 | 1.15× | 1,731 | 7.4 | – | 1,259 | MIT |
-| 30 | Go | `sonic-ast` | bytes→string | 581 | 1,491 | 1.09× | 2,823 | 9.9 | 135 / 11 ms | 2,153 | Apache-2.0 |
-| 31 | C/C++ | `glaze-dom` | string | 536 | 1,617 | 1.00× | 2,404 | 18.0 | – | 1,973 | MIT |
-| 32 | Kotlin/Java (JVM) | `kotlinx-element` | string | 479 | 1,807 | 0.90× | 3,877 | – | 2 / 6 ms | 2,774 | Apache-2.0 |
-| 33 | Kotlin/Java (JVM) | `jsonsmart-dom` | string | 467 | 1,853 | 0.87× | 2,463 | – | 1 / 3 ms | 2,237 | Apache-2.0 |
-| 34 | Kotlin/Java (JVM) | `minimaljson-dom` | string | 351 | 2,467 | 0.66× | 4,841 | – | 2 / 5 ms | 2,491 | MIT |
-| 35 | Kotlin/Java (JVM) | `gson-tree` | string | 300 | 2,886 | 0.56× | 6,227 | – | 2 / 5 ms | 2,731 | Apache-2.0 |
-| 36 | C/C++ | `jsonc-dom` | string | 232 | 3,735 | 0.43× | 4,021 | 46.6 | – | 2,928 | MIT |
-| 37 | Rust | `tinyjson-dom` | string | 174 | 4,986 | 0.32× | 4,076 | 52.7 | – | 2,591 | MIT |
-| 38 | C/C++ | `nlohmann-dom` | string | 154 | 5,633 | 0.29× | 4,813 | 57.1 | – | 2,199 | MIT |
-| 39 | Go | `stdlib-map` | bytes | 148 | 5,838 | 0.28× | 2,249 | 55.9 | 28 / 2 ms | 1,605 | BSD-3-Clause |
-| 40 | C/C++ | `jansson-dom` | string | 96 | 9,042 | 0.18× | 3,452 | 52.7 | – | 2,595 | MIT |
-| 41 | Kotlin/Java (JVM) | `orgjson-dom` | string | 49 | 17,714 | 0.09× | 6,026 | – | 0 / 0 ms | 2,331 | LicenseRef-Public-Domain |
-| 42 | JavaScript (Deno) | `simdjson-lazy` | string | 1 | 1,385,613 | 0.00× | 1,780 | – | – | – | Apache-2.0 |
+| 4 | Go | `fastjson-dom` | bytes-copy | 1,965 | 441 | 3.67× | 0 | 0.0 | 0 / 0 ms | – | MIT |
+| 5 | Rust | `simd_json-tape` | bytes-copy | 1,883 | 460 | 3.52× | 0 | 0.0 | – | – | Apache-2.0 OR MIT |
+| 6 | Python | `pysimdjson` | string | 1,679 | 516 | 3.14× | – | – | 0 / 0 ms | – | MIT |
+| 7 | Python | `cysimdjson` | string | 1,586 | 546 | 2.97× | – | – | 0 / 0 ms | – | Apache-2.0 |
+| 8 | C/C++ | `rapidjson-insitu` | bytes-copy | 1,534 | 565 | 2.87× | 66,668 | 6.0 | – | – | MIT |
+| 9 | C/C++ | `boostjson-dom-pool` | string | 1,456 | 595 | 2.72× | 0 | 0.0 | – | – | BSL-1.0 |
+| 10 | C/C++ | `sajson-dom` | string | 1,345 | 644 | 2.51× | 11,116 | 3.0 | – | 9,284 | MIT |
+| 11 | Rust | `jiter-value-scratch` | string | 1,286 | 674 | 2.40× | 1,053 | 9.6 | – | 1,085 | MIT |
+| 12 | Rust | `serde_json_borrow-value` | string | 1,129 | 767 | 2.11× | 1,889 | 7.5 | – | 1,183 | MIT |
+| 13 | C/C++ | `jsmn-tokens` | string | 1,107 | 782 | 2.07× | 0 | 0.0 | – | – | MIT |
+| 14 | Rust | `simdjson_rust-dom` | bytes-copy | 1,025 | 846 | 1.92× | 1,172 | 6.0 | – | – | Apache-2.0 |
+| 15 | Go | `simdjson-go-dom` | bytes | 820 | 1,056 | 1.53× | 16 | 1.0 | 1 / 1 ms | – | Apache-2.0 |
+| 16 | Kotlin/Java (JVM) | `simdjson-java-dom` | string→bytes-padded | 805 | 1,076 | 1.50× | 2,390 | – | 2 / 6 ms | – | Apache-2.0 |
+| 17 | Rust | `serde_json-value` | string | 788 | 1,099 | 1.47× | 2,461 | 23.5 | – | 1,978 | MIT OR Apache-2.0 |
+| 18 | Kotlin/Java (JVM) | `fastjson2-dom` | string→bytes | 757 | 1,144 | 1.42× | 3,549 | – | 4 / 10 ms | 1,893 | Apache-2.0 |
+| 19 | Rust | `json-dom` | string | 687 | 1,260 | 1.29× | 3,993 | 16.4 | – | 2,344 | MIT OR Apache-2.0 |
+| 20 | Kotlin/Java (JVM) | `jackson-tree` | string→bytes | 625 | 1,386 | 1.17× | 4,316 | – | 4 / 10 ms | 2,245 | Apache-2.0 |
+| 21 | Rust | `hifijson-value` | string | 615 | 1,408 | 1.15× | 1,731 | 7.4 | – | 1,259 | MIT |
+| 22 | Go | `sonic-ast` | bytes→string | 581 | 1,491 | 1.09× | 2,823 | 9.9 | 135 / 11 ms | 2,153 | Apache-2.0 |
+| 23 | C/C++ | `glaze-dom` | string | 536 | 1,617 | 1.00× | 2,404 | 18.0 | – | 1,973 | MIT |
+| 24 | Kotlin/Java (JVM) | `kotlinx-element` | string | 479 | 1,807 | 0.90× | 3,877 | – | 2 / 6 ms | 2,774 | Apache-2.0 |
+| 25 | Kotlin/Java (JVM) | `jsonsmart-dom` | string | 467 | 1,853 | 0.87× | 2,463 | – | 1 / 3 ms | 2,237 | Apache-2.0 |
+| 26 | Kotlin/Java (JVM) | `minimaljson-dom` | string | 351 | 2,467 | 0.66× | 4,841 | – | 2 / 5 ms | 2,491 | MIT |
+| 27 | Kotlin/Java (JVM) | `gson-tree` | string | 300 | 2,886 | 0.56× | 6,227 | – | 2 / 5 ms | 2,731 | Apache-2.0 |
+| 28 | C/C++ | `jsonc-dom` | string | 232 | 3,735 | 0.43× | 4,021 | 46.6 | – | 2,928 | MIT |
+| 29 | Rust | `tinyjson-dom` | string | 174 | 4,986 | 0.32× | 4,076 | 52.7 | – | 2,591 | MIT |
+| 30 | C/C++ | `nlohmann-dom` | string | 154 | 5,633 | 0.29× | 4,813 | 57.1 | – | 2,199 | MIT |
+| 31 | Go | `stdlib-map` | bytes | 148 | 5,838 | 0.28× | 2,249 | 55.9 | 28 / 2 ms | 1,605 | BSD-3-Clause |
+| 32 | C/C++ | `jansson-dom` | string | 96 | 9,042 | 0.18× | 3,452 | 52.7 | – | 2,595 | MIT |
+| 33 | Kotlin/Java (JVM) | `orgjson-dom` | string | 49 | 17,714 | 0.09× | 6,026 | – | 0 / 0 ms | 2,331 | LicenseRef-Public-Domain |
+| 34 | JavaScript (Deno) | `simdjson-lazy` | string | 1 | 1,385,613 | 0.00× | 1,780 | – | – | – | Apache-2.0 |
 
 ## Baselines (not parsers) — `all` workload
 
@@ -206,8 +178,6 @@ Geomean × quartz is the geometric mean, over the workloads both ran, of the spe
 | C/C++ | `simdjson-ondemand-borrowed` | borrowed | 2,005 | 1,242 | 1,368 | 2,680 | 5,258 | 2,259 | 1,973 | 3,116 | 3.53× |
 | Rust | `simd_json-tape` | dom | 1,883 | 1,755 | 1,710 | 2,052 | 3,589 | 1,751 | 2,117 | 4,072 | 3.50× |
 | Rust | `sonic_rs-borrowed` | borrowed | 1,747 | 1,440 | 1,754 | 2,841 | 4,721 | 1,240 | 1,727 | 4,226 | 3.43× |
-| C/C++ | `yyjson-insitu` | dom | 2,026 | 1,501 | 1,721 | 2,125 | 2,846 | 2,098 | 2,341 | 3,390 | 3.43× |
-| C/C++ | `yyjson-dom` | dom | 1,945 | 1,446 | 1,758 | 2,051 | 2,696 | 1,977 | 2,220 | 3,330 | 3.31× |
 | Python | `pysimdjson` | dom | 1,679 | 1,428 | 1,550 | 1,997 | 3,512 | 1,159 | 2,109 | 5,918 | 3.28× |
 | Python | `cysimdjson` | dom | 1,586 | 1,350 | 1,398 | 1,790 | 3,377 | 1,141 | 2,072 | 5,650 | 3.11× |
 | C/C++ | `rapidjson-insitu` | dom | 1,534 | 1,178 | 1,203 | 1,555 | 3,746 | 1,312 | 2,067 | 5,409 | 3.01× |
@@ -225,15 +195,11 @@ Geomean × quartz is the geometric mean, over the workloads both ran, of the spe
 | Rust | `jiter-typed` | typed | 1,194 | 913 | 1,394 | 2,099 | 3,866 | 781 | 1,453 | 2,500 | 2.44× |
 | Rust | `simd_json_derive-typed` | typed | 1,176 | 878 | 1,057 | 1,515 | 2,717 | 1,486 | 1,644 | 1,958 | 2.30× |
 | Rust | `serde_json-typed` | typed | 1,177 | 944 | 1,191 | 1,823 | 3,081 | 903 | 1,316 | 2,142 | 2.26× |
-| Rust | `jiter-value` | dom | 1,136 | 881 | 1,066 | 1,665 | 3,475 | 750 | 1,329 | 2,688 | 2.22× |
 | Rust | `serde_json_borrow-value` | dom | 1,129 | 960 | 1,031 | 1,634 | 3,144 | 887 | 1,238 | 2,539 | 2.21× |
 | C/C++ | `sajson-dom` | dom | 1,345 | 1,039 | 1,197 | 1,435 | 1,927 | 1,026 | 1,261 | 2,647 | 2.21× |
 | Rust | `simd_json-typed` | typed | 1,117 | 857 | 962 | 1,396 | 2,675 | 1,438 | 1,542 | 1,947 | 2.19× |
-| Rust | `jiter-serde-typed` | typed | 1,070 | 811 | 1,159 | 1,758 | 3,498 | 749 | 1,338 | 2,286 | 2.18× |
 | Rust | `simdjson_rust-typed` | typed | 1,079 | 856 | 1,007 | 1,398 | 2,750 | 1,315 | 1,526 | 1,850 | 2.16× |
 | C/C++ | `glaze-typed` | typed | 1,201 | 811 | 908 | 1,613 | 2,703 | 1,304 | 1,191 | 1,815 | 2.11× |
-| C/C++ | `rapidjson-dom-pool` | dom | 1,108 | 942 | 979 | 1,204 | 2,405 | 920 | 1,205 | 3,217 | 2.10× |
-| Rust | `simd_json-borrowed` | dom | 1,066 | 871 | 833 | 1,193 | 2,408 | 1,253 | 1,453 | 2,150 | 2.05× |
 | Rust | `simdjson_rust-dom` | dom | 1,025 | 801 | 842 | 1,238 | 2,643 | 1,224 | 1,411 | 2,207 | 2.05× |
 | Kotlin/Java (JVM) | `jsoniter-scala` | typed | 1,036 | 870 | 1,411 | 1,836 | 1,850 | 653 | 863 | 2,058 | 1.91× |
 | Kotlin/Java (JVM) | `fastjson2-reflect-string` | typed | 957 | 845 | 1,041 | 1,441 | 2,095 | 579 | 839 | 3,342 | 1.87× |
@@ -242,52 +208,36 @@ Geomean × quartz is the geometric mean, over the workloads both ran, of the spe
 | JavaScript (Bun) | `json-parse-string` | typed | 696 | 596 | 960 | 1,399 | 2,290 | 671 | 1,008 | 2,467 | 1.72× |
 | JavaScript (Deno) | `json-parse-string` | typed | 877 | 727 | 797 | 1,157 | 2,256 | 589 | 1,019 | 2,633 | 1.72× |
 | Go | `sonic-typed` | typed | 1,174 | 715 | 690 | 1,231 | 1,677 | 843 | 920 | 2,019 | 1.69× |
-| C/C++ | `boostjson-dom` | dom | 876 | 727 | 701 | 1,016 | 2,242 | 734 | 1,091 | 2,204 | 1.68× |
 | JavaScript (Bun) | `bun-jsonl-string` | typed | 735 | 562 | 925 | 1,359 | 2,156 | 677 | 951 | 2,334 | 1.67× |
-| Kotlin/Java (JVM) | `fastjson2-reader` | typed | 791 | 666 | 1,198 | 1,945 | 1,697 | 480 | 643 | 2,283 | 1.64× |
 | C/C++ | `rapidjson-sax-typed` | typed | 860 | 630 | 710 | 1,069 | 2,077 | 917 | 1,062 | 1,648 | 1.63× |
-| C/C++ | `rapidjson-dom` | dom | 869 | 697 | 685 | 903 | 1,674 | 694 | 1,026 | 2,569 | 1.59× |
 | Kotlin/Java (JVM) | `simdjson-java-dom` | dom | 805 | 738 | 917 | 1,131 | 1,388 | 664 | 969 | 1,894 | 1.57× |
 | Rust | `serde_json-value` | dom | 788 | 671 | 714 | 1,059 | 2,025 | 704 | 1,059 | 1,691 | 1.57× |
 | Go | `simdjson-go-dom` | dom | 820 | 760 | 687 | 843 | 1,805 | 738 | 1,097 | 1,681 | 1.54× |
-| Rust | `simd_json-owned-value` | dom | 755 | 588 | 597 | 959 | 1,905 | 1,028 | 1,144 | 1,541 | 1.54× |
 | Go | `goccy-typed` | typed | 924 | 685 | 628 | 1,073 | 1,516 | 845 | 936 | 1,687 | 1.54× |
 | Python | `msgspec-typed` | typed | 822 | 608 | 752 | 1,196 | 1,797 | 526 | 1,068 | 1,867 | 1.53× |
-| Kotlin/Java (JVM) | `fastjson2-reflect-bytes` | typed | 797 | 674 | 876 | 1,225 | 1,593 | 474 | 730 | 2,421 | 1.51× |
 | Kotlin/Java (JVM) | `fastjson2-dom` | dom | 757 | 655 | 983 | 1,389 | 1,550 | 454 | 629 | 2,305 | 1.49× |
 | JavaScript (Node) | `json-parse-string` | typed | 763 | 652 | 646 | 919 | 1,657 | 703 | 1,038 | 1,854 | 1.49× |
 | Python | `orjson` | typed | 762 | 593 | 633 | 813 | 1,398 | 665 | 1,218 | 1,929 | 1.44× |
 | Rust | `miniserde-typed` | typed | 756 | 643 | 759 | 1,065 | 1,581 | 714 | 914 | 1,206 | 1.43× |
 | Python | `jiter` | typed | 654 | 503 | 622 | 862 | 1,735 | 418 | 1,010 | 2,932 | 1.39× |
-| Python | `msgspec-generic` | typed | 737 | 552 | 653 | 950 | 1,563 | 490 | 1,025 | 1,849 | 1.38× |
 | Go | `fiatjaf-nostr-typed` | typed | 832 | 643 | 570 | 1,020 | 1,472 | 630 | 732 | 1,581 | 1.36× |
-| Rust | `sonic_rs-lazy` | typed | 660 | 531 | 618 | 1,060 | 2,135 | 623 | 702 | 1,490 | 1.36× |
 | Python | `pysimdjson-recursive` | typed | 672 | 524 | 516 | 732 | 1,476 | 559 | 1,040 | 2,308 | 1.32× |
 | Go | `fastjson-typed` | typed | 760 | 583 | 512 | 894 | 1,357 | 616 | 721 | 1,723 | 1.29× |
-| JavaScript (Bun) | `bun-jsonl-bytes` | typed | 569 | 452 | 674 | 930 | 1,678 | 459 | 853 | 1,949 | 1.28× |
 | Go | `go-nostr-typed` | typed | 764 | 600 | 525 | 896 | 1,414 | 601 | 710 | 1,521 | 1.28× |
-| JavaScript (Bun) | `json-parse-buffer` | typed | 541 | 504 | 746 | 920 | 1,457 | 509 | 715 | 1,793 | 1.26× |
 | Kotlin/Java (JVM) | `jackson-streaming-bytes` | typed | 647 | 587 | 658 | 859 | 1,213 | 593 | 824 | 1,341 | 1.25× |
 | Go | `easyjson-typed` | typed | 746 | 565 | 498 | 894 | 1,400 | 591 | 681 | 1,506 | 1.24× |
 | Rust | `json-dom` | dom | 687 | 586 | 646 | 881 | 1,179 | 599 | 761 | 1,170 | 1.23× |
 | Kotlin/Java (JVM) | `jackson-tree` | dom | 625 | 596 | 630 | 800 | 1,102 | 583 | 843 | 1,268 | 1.21× |
 | Go | `jx-typed` | typed | 780 | 540 | 589 | 970 | 1,208 | 513 | 592 | 1,333 | 1.20× |
-| JavaScript (Node) | `json-parse-buffer` | typed | 606 | 510 | 544 | 762 | 1,305 | 516 | 872 | 1,536 | 1.19× |
 | Kotlin/Java (JVM) | `dsljson-reflect` | typed | 640 | 597 | 837 | 1,022 | 1,055 | 464 | 569 | 1,246 | 1.19× |
 | Python | `yyjson` | typed | 596 | 510 | 480 | 604 | 1,081 | 574 | 978 | 1,682 | 1.16× |
 | C/C++ | `boostjson-typed` | typed | 588 | 437 | 479 | 671 | 1,542 | 612 | 822 | 1,280 | 1.14× |
-| Go | `sonic-typed-std` | typed | 824 | 532 | 461 | 815 | 1,038 | 695 | 762 | 857 | 1.14× |
 | Kotlin/Java (JVM) | `jsoniter-iterator` | typed | 644 | 574 | 719 | 923 | 947 | 497 | 589 | 1,098 | 1.13× |
-| JavaScript (Deno) | `json-parse-buffer` | typed | 581 | 515 | 562 | 732 | 1,179 | 431 | 711 | 1,389 | 1.11× |
 | Rust | `hifijson-value` | dom | 615 | 534 | 599 | 796 | 1,197 | 456 | 652 | 1,062 | 1.10× |
 | Rust | `hifijson-serde-typed` | typed | 613 | 518 | 643 | 843 | 1,207 | 454 | 656 | 953 | 1.10× |
-| Kotlin/Java (JVM) | `dsljson-bytes` | typed | 629 | 561 | 853 | 982 | 942 | 413 | 483 | 1,034 | 1.10× |
 | Kotlin/Java (JVM) | `quartz-kotlinx` | typed | 527 | 489 | 506 | 697 | 1,147 | 421 | 605 | 1,612 | 1.06× |
 | C/C++ | `glaze-dom` | dom | 536 | 423 | 394 | 643 | 1,322 | 740 | 731 | 1,001 | 1.05× |
-| Kotlin/Java (JVM) | `quartz-loop-plain` | typed | 440 | 569 | 614 | 763 | 1,053 | 555 | 635 | 883 | 1.04× |
 | Kotlin/Java (JVM) | `quartz-jackson` | typed | 535 | 535 | 525 | 658 | 976 | 534 | 626 | 861 | 1.00× |
-| Kotlin/Java (JVM) | `jackson-streaming-string` | typed | 401 | 546 | 582 | 734 | 982 | 560 | 632 | 798 | 0.99× |
-| Kotlin/Java (JVM) | `quartz-loop` | typed | 383 | 546 | 556 | 693 | 1,001 | 523 | 611 | 846 | 0.97× |
 | Go | `sonic-ast` | dom | 581 | 415 | 300 | 465 | 830 | 435 | 834 | 1,470 | 0.93× |
 | Kotlin/Java (JVM) | `jsonsmart-dom` | dom | 467 | 388 | 763 | 962 | 723 | 287 | 339 | 1,488 | 0.92× |
 | C/C++ | `cjson-dom` | dom |  |  | 376 | 505 | 819 | 540 | 622 | 773 | 0.86× |
@@ -298,26 +248,21 @@ Geomean × quartz is the geometric mean, over the workloads both ran, of the spe
 | Python | `ujson` | typed | 446 | 400 | 357 | 439 | 728 | 412 | 635 | 971 | 0.81× |
 | Kotlin/Java (JVM) | `parsson-streaming` | typed | 339 | 444 | 476 | 605 | 806 | 381 | 436 | 862 | 0.81× |
 | Go | `segmentio-borrowed` | borrowed | 411 | 297 | 372 | 748 | 1,086 | 248 | 322 | 1,398 | 0.79× |
-| Kotlin/Java (JVM) | `kotlinx-stream` | typed | 435 | 392 | 460 | 605 | 851 | 319 | 484 | 591 | 0.78× |
 | Go | `jsoniter-typed-compat` | typed | 489 | 346 | 392 | 639 | 681 | 359 | 354 | 792 | 0.75× |
-| Go | `jsoniter-typed` | typed | 486 | 349 | 394 | 625 | 694 | 358 | 351 | 788 | 0.75× |
 | JavaScript (Bun) | `simdjson-parse` | typed | 348 | 309 | 313 | 401 | 878 | 430 | 582 | 816 | 0.74× |
 | Go | `ojg-dom` | dom |  |  |  | 397 | 631 |  |  | 776 | 0.71× |
 | Go | `jsonv2-typed` | typed | 385 | 295 | 288 | 483 | 713 | 310 | 357 | 793 | 0.66× |
 | Go | `segmentio-typed` | typed | 366 | 262 | 316 | 576 | 755 | 235 | 301 | 1,005 | 0.65× |
 | Rust | `nanoserde-typed` | typed | 366 | 332 | 336 | 380 | 533 | 399 | 427 | 514 | 0.63× |
-| Kotlin/Java (JVM) | `quartz-jackson-cacheshare` | typed | 226 | 279 | 301 | 501 | 826 | 455 | 294 | 543 | 0.62× |
 | Python | `json-stdlib` | typed | 314 | 292 | 251 | 307 | 585 | 225 | 415 | 877 | 0.58× |
 | Kotlin/Java (JVM) | `minimaljson-dom` | dom | 351 | 357 | 384 | 421 | 415 | 278 | 340 | 410 | 0.57× |
 | Go | `jsonparser-typed` | typed | 317 | 257 | 312 | 519 | 551 | 246 | 200 | 787 | 0.56× |
 | JavaScript (Deno) | `simdjson-parse` | typed | 268 | 212 | 197 | 290 | 650 | 338 | 469 | 730 | 0.55× |
 | Python | `simplejson` | typed | 282 | 271 | 231 | 274 | 564 | 186 | 352 | 880 | 0.52× |
-| Kotlin/Java (JVM) | `quartz-loop-intern` | typed | 180 | 240 | 227 | 359 | 667 | 392 | 289 | 543 | 0.52× |
 | Kotlin/Java (JVM) | `gson-tree` | dom | 300 | 299 | 298 | 323 | 374 | 275 | 335 | 381 | 0.50× |
 | JavaScript (Bun) | `jsonjoy-decoder` | typed |  |  |  | 226 | 467 |  |  | 581 | 0.48× |
 | Rust | `struson-typed` | typed | 250 | 222 | 224 | 271 | 347 | 259 | 305 | 338 | 0.43× |
 | Kotlin/Java (JVM) | `gson-streaming` | typed | 262 | 261 | 265 | 279 | 307 | 243 | 281 | 291 | 0.43× |
-| Kotlin/Java (JVM) | `gson-reflect` | typed | 257 | 255 | 250 | 274 | 305 | 240 | 287 | 282 | 0.42× |
 | JavaScript (Node) | `jsonjoy-decoder` | typed |  |  |  | 218 | 343 |  |  | 331 | 0.35× |
 | JavaScript (Deno) | `jsonjoy-decoder` | typed |  |  |  | 215 | 303 |  |  | 306 | 0.33× |
 | Rust | `tinyjson-dom` | dom | 174 | 161 | 153 | 172 | 225 | 184 | 206 | 227 | 0.29× |
@@ -326,7 +271,6 @@ Geomean × quartz is the geometric mean, over the workloads both ran, of the spe
 | C/C++ | `nlohmann-dom` | dom | 154 | 139 | 132 | 152 | 194 | 172 | 189 | 198 | 0.26× |
 | Go | `stdlib-map` | dom | 148 | 130 | 110 | 141 | 199 | 147 | 165 | 234 | 0.24× |
 | Go | `gjson-typed` | typed | 157 | 146 | 142 | 157 | 156 | 156 | 175 | 144 | 0.24× |
-| C/C++ | `nlohmann-typed` | typed | 140 | 121 | 118 | 141 | 186 | 165 | 178 | 183 | 0.24× |
 | C/C++ | `jsonc-dom` | dom | 232 | 187 | 55 | 232 | 174 | 98 | 110 | 231 | 0.23× |
 | JavaScript (Node) | `streamparser-json` | typed | 105 | 98 | 80 | 118 | 223 | 86 | 126 | 283 | 0.20× |
 | JavaScript (Bun) | `streamparser-json` | typed | 109 | 82 | 84 | 128 | 253 | 79 | 116 | 226 | 0.19× |
@@ -335,6 +279,41 @@ Geomean × quartz is the geometric mean, over the workloads both ran, of the spe
 | JavaScript (Deno) | `simdjson-lazy` | dom | 1 | 97 | 84 | 107 | 191 | 90 | 151 | 335 | 0.11× |
 | Kotlin/Java (JVM) | `orgjson-dom` | dom | 49 | 55 | 54 | 54 | 55 | 55 | 55 | 55 | 0.08× |
 | Kotlin/Java (JVM) | `simdjson-java-schema` | typed | 21 | 21 | 13 | 15 | 41 | 21 | 49 | 182 | 0.05× |
+
+## Variants — `all` workload
+
+Other ways the same library was run (another entry point or input path) and rows a harness flags as variants (breakdowns, an input that isn't the frame type). Each library's headline row above is its fastest; × is this row's speed relative to it, – when the row has no headline row of its own.
+
+| language | library | mode | headline row | variant | input | ns/event | × headline |
+|---|---|---|---|---|---|---:|---:|
+| C/C++ | Boost.JSON | dom | `boostjson-dom-pool` | `boostjson-dom` | string | 989 | 0.60× |
+| C/C++ | nlohmann/json | typed | `nlohmann-sax-typed` | `nlohmann-typed` | string | 6,167 | 0.84× |
+| C/C++ | rapidjson | dom | `rapidjson-insitu` | `rapidjson-dom-pool` | string | 782 | 0.72× |
+| C/C++ | rapidjson | dom | `rapidjson-insitu` | `rapidjson-dom` | string | 997 | 0.57× |
+| C/C++ | yyjson | dom | `yyjson-dom-pool` | `yyjson-insitu` | bytes-copy | 428 | 0.90× |
+| C/C++ | yyjson | dom | `yyjson-dom-pool` | `yyjson-dom` | string | 445 | 0.87× |
+| Go | bytedance/sonic | typed | `sonic-typed` | `sonic-typed-std` | bytes→string | 1,052 | 0.70× |
+| Go | json-iterator/go | typed | `jsoniter-typed-compat` | `jsoniter-typed` | bytes | 1,783 | 0.99× |
+| JavaScript (Bun) | Buffer.toString + JSON.parse | typed | – | `json-parse-buffer` | bytes | 1,601 | – |
+| JavaScript (Bun) | Bun.JSONL.parse | typed | `bun-jsonl-string` | `bun-jsonl-bytes` | string→bytes | 1,523 | 0.77× |
+| JavaScript (Deno) | Buffer.toString + JSON.parse | typed | – | `json-parse-buffer` | bytes | 1,491 | – |
+| JavaScript (Node) | Buffer.toString + JSON.parse | typed | – | `json-parse-buffer` | bytes | 1,430 | – |
+| Kotlin/Java (JVM) | Quartz JacksonMapper + Event.shareStrings | typed | – | `quartz-jackson-cacheshare` | string | 3,841 | – |
+| Kotlin/Java (JVM) | dsl-json | typed | `dsljson-reflect` | `dsljson-bytes` | string→bytes | 1,377 | 0.98× |
+| Kotlin/Java (JVM) | fastjson2 | typed | `fastjson2-reflect-string` | `fastjson2-reflect-bytes` | string→bytes | 1,087 | 0.83× |
+| Kotlin/Java (JVM) | fastjson2 | typed | `fastjson2-reflect-string` | `fastjson2-reader` | string→bytes | 1,096 | 0.83× |
+| Kotlin/Java (JVM) | gson | typed | `gson-streaming` | `gson-reflect` | string | 3,370 | 0.98× |
+| Kotlin/Java (JVM) | jackson-core | typed | `jackson-streaming-bytes` | `jackson-streaming-string` | string | 2,159 | 0.62× |
+| Kotlin/Java (JVM) | jackson-core + Quartz's EventDeserializer loop | typed | – | `quartz-loop-plain` | string | 1,967 | – |
+| Kotlin/Java (JVM) | jackson-core + Quartz's EventDeserializer loop | typed | – | `quartz-loop` | string | 2,259 | – |
+| Kotlin/Java (JVM) | jackson-core + Quartz's EventDeserializer loop | typed | – | `quartz-loop-intern` | string | 4,826 | – |
+| Kotlin/Java (JVM) | kotlinx-serialization-json | typed | `kotlinx-typed` | `kotlinx-stream` | string→bytes | 1,994 | 0.94× |
+| Python | msgspec | typed | `msgspec-typed` | `msgspec-generic` | string | 1,175 | 0.90× |
+| Rust | jiter | dom | `jiter-value-scratch` | `jiter-value` | string | 763 | 0.88× |
+| Rust | jiter | typed | `jiter-typed` | `jiter-serde-typed` | string | 810 | 0.90× |
+| Rust | simd-json | dom | `simd_json-tape` | `simd_json-borrowed` | bytes-copy | 813 | 0.57× |
+| Rust | simd-json | dom | `simd_json-tape` | `simd_json-owned-value` | bytes-copy | 1,148 | 0.40× |
+| Rust | sonic-rs | typed | `sonic_rs-typed` | `sonic_rs-lazy` | string | 1,313 | 0.52× |
 
 ## Interning: parse cost vs. memory kept (JVM)
 

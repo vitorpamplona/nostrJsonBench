@@ -25,20 +25,23 @@ the same 31k real events; every result is verified by digest and compared agains
 | Bun | `Bun.JSONL.parse` | 1,178 | 735 | 1,031 | 1.4× |
 | JVM | **`quartz-jackson`** | **1,620** | **535** | **1,376** | 1.0× |
 
-**JVM**, from the String a WebSocket delivers:
+**JVM**, one row per library: its fastest path from the String a WebSocket delivers
+(the library's String API, or encoding to bytes first when that is faster; the encode is
+timed). Its other paths are under "Variants" in the report.
 
-| parser | ns/event | alloc B/event | retained B/event |
-|---|---:|---:|---:|
-| jsoniter-scala ¹ | 836 | 2,772 | 1,381 |
-| fastjson2 (reflection) | 905 | 3,701 | 1,389 |
-| fastjson2 (hand loop) | 1,096 | 3,096 | 1,389 |
-| Jackson streaming (String → bytes) | 1,338 | 3,282 | 1,370 |
-| DSL-JSON (hand loop) | 1,377 | 2,542 | 1,381 |
-| **Quartz, Jackson path** | **1,620** | 2,332 | 1,376 (900 once LocalCache shares its strings) |
-| Quartz, kotlinx path | 1,643 | 4,476 | 1,376 |
-| kotlinx.serialization | 1,871 | 2,943 | 1,370 |
-| Moshi streaming | 1,936 | 3,067 | 1,370 |
-| Gson streaming | 3,309 | 5,127 | 1,381 |
+| library | path | ns/event | alloc B/event | retained B/event |
+|---|---|---:|---:|---:|
+| jsoniter-scala ¹ | String API | 836 | 2,772 | 1,381 |
+| fastjson2 | String API | 905 | 3,701 | 1,389 |
+| Jackson streaming | encode + byte API | 1,338 | 3,282 | 1,370 |
+| jsoniter (Java) | encode + byte API | 1,345 | 2,886 | 1,381 |
+| DSL-JSON | encode + byte API | 1,354 | 2,716 | 1,381 |
+| **Quartz, Jackson path** | String API | **1,620** | 2,332 | 1,376 (900 once LocalCache shares its strings) |
+| Quartz, kotlinx path | String API | 1,643 | 4,476 | 1,376 |
+| kotlinx.serialization | String API | 1,871 | 2,943 | 1,370 |
+| Moshi | okio `writeUtf8` | 1,936 | 3,067 | 1,370 |
+| Parsson | String API | 2,558 | 2,039 | 1,381 |
+| Gson | String API | 3,309 | 5,127 | 1,381 |
 
 ¹ Needs the Scala runtime. simdjson-java (805 MB/s, DOM only) needs the JDK Vector API;
 neither ships on Android.

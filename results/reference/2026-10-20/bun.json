@@ -255,7 +255,8 @@
       "allocs_per_event": null,
       "gc_count": null,
       "gc_ms": null,
-      "retained_bytes_per_event": 1030.6155771637623
+      "retained_bytes_per_event": 1030.6155771637623,
+      "variant": true
     },
     {
       "parser": "json-parse-buffer",
@@ -282,7 +283,8 @@
       "allocs_per_event": null,
       "gc_count": null,
       "gc_ms": null,
-      "retained_bytes_per_event": 1268.5622197309417
+      "retained_bytes_per_event": 1268.5622197309417,
+      "variant": true
     },
     {
       "parser": "json-parse-buffer",
@@ -309,7 +311,8 @@
       "allocs_per_event": null,
       "gc_count": null,
       "gc_ms": null,
-      "retained_bytes_per_event": 667.0482514386897
+      "retained_bytes_per_event": 667.0482514386897,
+      "variant": true
     },
     {
       "parser": "json-parse-buffer",
@@ -336,7 +339,8 @@
       "allocs_per_event": null,
       "gc_count": null,
       "gc_ms": null,
-      "retained_bytes_per_event": 685.75375
+      "retained_bytes_per_event": 685.75375,
+      "variant": true
     },
     {
       "parser": "json-parse-buffer",
@@ -363,7 +367,8 @@
       "allocs_per_event": null,
       "gc_count": null,
       "gc_ms": null,
-      "retained_bytes_per_event": 1803.2843866171004
+      "retained_bytes_per_event": 1803.2843866171004,
+      "variant": true
     },
     {
       "parser": "json-parse-buffer",
@@ -390,7 +395,8 @@
       "allocs_per_event": null,
       "gc_count": null,
       "gc_ms": null,
-      "retained_bytes_per_event": 1245.2238805970148
+      "retained_bytes_per_event": 1245.2238805970148,
+      "variant": true
     },
     {
       "parser": "json-parse-buffer",
@@ -417,7 +423,8 @@
       "allocs_per_event": null,
       "gc_count": null,
       "gc_ms": null,
-      "retained_bytes_per_event": 2272.3716535433073
+      "retained_bytes_per_event": 2272.3716535433073,
+      "variant": true
     },
     {
       "parser": "json-parse-buffer",
@@ -444,7 +451,8 @@
       "allocs_per_event": null,
       "gc_count": null,
       "gc_ms": null,
-      "retained_bytes_per_event": 9751.075
+      "retained_bytes_per_event": 9751.075,
+      "variant": true
     },
     {
       "parser": "baseline-buffer-tostring",

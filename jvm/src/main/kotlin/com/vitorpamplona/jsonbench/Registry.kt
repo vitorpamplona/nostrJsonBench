@@ -77,6 +77,8 @@ class ParserSpec(
     val mode: String,
     val input: String,
     val notes: String,
+    /** A diagnostic row (a breakdown, an extra input path): never shown as its library's headline row. */
+    val variant: Boolean = false,
     val create: () -> BenchParser<*>,
 ) {
     val version: String
@@ -116,6 +118,7 @@ val PARSERS: List<ParserSpec> =
             "quartz-jackson plus what LocalCache does to an event it keeps (Event.shareStrings: id and " +
                 "pubkey shared with the cache keys, tag values interned), for every event: the worst case " +
                 "where every event is new and kept. Needs a Quartz newer than 1.19.0.",
+            variant = true,
         ) { QuartzJacksonCacheShare() },
         ParserSpec(
             "quartz-kotlinx",
@@ -136,6 +139,7 @@ val PARSERS: List<ParserSpec> =
             "Breakdown row: Quartz's EventDeserializer loop + EventFactory as shipped after Amethyst #4583 " +
                 "(no String.intern()) on a bare jackson-core parser. quartz-jackson minus this = the cost of " +
                 "going through ObjectMapper.readValue.",
+            variant = true,
         ) { QuartzLoop() },
         ParserSpec(
             "quartz-loop-intern",
@@ -147,6 +151,7 @@ val PARSERS: List<ParserSpec> =
             "Breakdown row: quartz-loop plus the String.intern() on id, pubkey and every tag value that " +
                 "Quartz 1.19.0 and earlier did while parsing. Speed difference = what that costs; " +
                 "retained-heap difference = what it saves.",
+            variant = true,
         ) { QuartzLoopIntern() },
         ParserSpec(
             "quartz-loop-plain",
@@ -157,6 +162,7 @@ val PARSERS: List<ParserSpec> =
             "string",
             "Breakdown row: as quartz-loop but builds a plain Event instead of calling EventFactory. " +
                 "The difference is EventFactory's cost.",
+            variant = true,
         ) { QuartzLoopPlain() },
         ParserSpec(
             "jackson-streaming-bytes",

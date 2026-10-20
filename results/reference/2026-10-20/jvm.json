@@ -273,7 +273,8 @@
       "allocs_per_event": null,
       "gc_count": 0,
       "gc_ms": 0,
-      "retained_bytes_per_event": 900
+      "retained_bytes_per_event": 900,
+      "variant": true
     },
     {
       "parser": "quartz-jackson-cacheshare",
@@ -300,7 +301,8 @@
       "allocs_per_event": null,
       "gc_count": 0,
       "gc_ms": 0,
-      "retained_bytes_per_event": 1029.877
+      "retained_bytes_per_event": 1029.877,
+      "variant": true
     },
     {
       "parser": "quartz-jackson-cacheshare",
@@ -327,7 +329,8 @@
       "allocs_per_event": null,
       "gc_count": 1,
       "gc_ms": 3,
-      "retained_bytes_per_event": 572.257
+      "retained_bytes_per_event": 572.257,
+      "variant": true
     },
     {
       "parser": "quartz-jackson-cacheshare",
@@ -354,7 +357,8 @@
       "allocs_per_event": null,
       "gc_count": 2,
       "gc_ms": 5,
-      "retained_bytes_per_event": 640.806
+      "retained_bytes_per_event": 640.806,
+      "variant": true
     },
     {
       "parser": "quartz-jackson-cacheshare",
@@ -381,7 +385,8 @@
       "allocs_per_event": null,
       "gc_count": 2,
       "gc_ms": 4,
-      "retained_bytes_per_event": 1803.529
+      "retained_bytes_per_event": 1803.529,
+      "variant": true
     },
     {
       "parser": "quartz-jackson-cacheshare",
@@ -408,7 +413,8 @@
       "allocs_per_event": null,
       "gc_count": 1,
       "gc_ms": 2,
-      "retained_bytes_per_event": 1153.313
+      "retained_bytes_per_event": 1153.313,
+      "variant": true
     },
     {
       "parser": "quartz-jackson-cacheshare",
@@ -435,7 +441,8 @@
       "allocs_per_event": null,
       "gc_count": 0,
       "gc_ms": 0,
-      "retained_bytes_per_event": 2231.25
+      "retained_bytes_per_event": 2231.25,
+      "variant": true
     },
     {
       "parser": "quartz-jackson-cacheshare",
@@ -462,7 +469,8 @@
       "allocs_per_event": null,
       "gc_count": 1,
       "gc_ms": 2,
-      "retained_bytes_per_event": 8813.6
+      "retained_bytes_per_event": 8813.6,
+      "variant": true
     },
     {
       "parser": "quartz-kotlinx",
@@ -705,7 +713,8 @@
       "allocs_per_event": null,
       "gc_count": 0,
       "gc_ms": 0,
-      "retained_bytes_per_event": 1376.271
+      "retained_bytes_per_event": 1376.271,
+      "variant": true
     },
     {
       "parser": "quartz-loop",
@@ -732,7 +741,8 @@
       "allocs_per_event": null,
       "gc_count": 2,
       "gc_ms": 5,
-      "retained_bytes_per_event": 1705.478
+      "retained_bytes_per_event": 1705.478,
+      "variant": true
     },
     {
       "parser": "quartz-loop",
@@ -759,7 +769,8 @@
       "allocs_per_event": null,
       "gc_count": 2,
       "gc_ms": 4,
-      "retained_bytes_per_event": 1049.211
+      "retained_bytes_per_event": 1049.211,
+      "variant": true
     },
     {
       "parser": "quartz-loop",
@@ -786,7 +797,8 @@
       "allocs_per_event": null,
       "gc_count": 2,
       "gc_ms": 5,
-      "retained_bytes_per_event": 922.426
+      "retained_bytes_per_event": 922.426,
+      "variant": true
     },
     {
       "parser": "quartz-loop",
@@ -813,7 +825,8 @@
       "allocs_per_event": null,
       "gc_count": 2,
       "gc_ms": 6,
-      "retained_bytes_per_event": 1976.912
+      "retained_bytes_per_event": 1976.912,
+      "variant": true
     },
     {
       "parser": "quartz-loop",
@@ -840,7 +853,8 @@
       "allocs_per_event": null,
       "gc_count": 1,
       "gc_ms": 2,
-      "retained_bytes_per_event": 1231.791
+      "retained_bytes_per_event": 1231.791,
+      "variant": true
     },
     {
       "parser": "quartz-loop",
@@ -867,7 +881,8 @@
       "allocs_per_event": null,
       "gc_count": 1,
       "gc_ms": 3,
-      "retained_bytes_per_event": 2848.63
+      "retained_bytes_per_event": 2848.63,
+      "variant": true
     },
     {
       "parser": "quartz-loop",
@@ -894,7 +909,8 @@
       "allocs_per_event": null,
       "gc_count": 1,
       "gc_ms": 2,
-      "retained_bytes_per_event": 11350.4
+      "retained_bytes_per_event": 11350.4,
+      "variant": true
     },
     {
       "parser": "quartz-loop-intern",
@@ -921,7 +937,8 @@
       "allocs_per_event": null,
       "gc_count": 0,
       "gc_ms": 0,
-      "retained_bytes_per_event": 900.014
+      "retained_bytes_per_event": 900.014,
+      "variant": true
     },
     {
       "parser": "quartz-loop-intern",
@@ -948,7 +965,8 @@
       "allocs_per_event": null,
       "gc_count": 0,
       "gc_ms": 0,
-      "retained_bytes_per_event": 1029.904
+      "retained_bytes_per_event": 1029.904,
+      "variant": true
     },
     {
       "parser": "quartz-loop-intern",
@@ -975,7 +993,8 @@
       "allocs_per_event": null,
       "gc_count": 0,
       "gc_ms": 0,
-      "retained_bytes_per_event": 572.278
+      "retained_bytes_per_event": 572.278,
+      "variant": true
     },
     {
       "parser": "quartz-loop-intern",
@@ -1002,7 +1021,8 @@
       "allocs_per_event": null,
       "gc_count": 1,
       "gc_ms": 4,
-      "retained_bytes_per_event": 640.811
+      "retained_bytes_per_event": 640.811,
+      "variant": true
     },
     {
       "parser": "quartz-loop-intern",
@@ -1029,7 +1049,8 @@
       "allocs_per_event": null,
       "gc_count": 1,
       "gc_ms": 3,
-      "retained_bytes_per_event": 1803.559
+      "retained_bytes_per_event": 1803.559,
+      "variant": true
     },
     {
       "parser": "quartz-loop-intern",
@@ -1056,7 +1077,8 @@
       "allocs_per_event": null,
       "gc_count": 1,
       "gc_ms": 2,
-      "retained_bytes_per_event": 1153.313
+      "retained_bytes_per_event": 1153.313,
+      "variant": true
     },
     {
       "parser": "quartz-loop-intern",
@@ -1083,7 +1105,8 @@
       "allocs_per_event": null,
       "gc_count": 0,
       "gc_ms": 0,
-      "retained_bytes_per_event": 2231.25
+      "retained_bytes_per_event": 2231.25,
+      "variant": true
     },
     {
       "parser": "quartz-loop-intern",
@@ -1110,7 +1133,8 @@
       "allocs_per_event": null,
       "gc_count": 1,
       "gc_ms": 2,
-      "retained_bytes_per_event": 8813.6
+      "retained_bytes_per_event": 8813.6,
+      "variant": true
     },
     {
       "parser": "quartz-loop-plain",
@@ -1137,7 +1161,8 @@
       "allocs_per_event": null,
       "gc_count": 1,
       "gc_ms": 2,
-      "retained_bytes_per_event": 1370.334
+      "retained_bytes_per_event": 1370.334,
+      "variant": true
     },
     {
       "parser": "quartz-loop-plain",
@@ -1164,7 +1189,8 @@
       "allocs_per_event": null,
       "gc_count": 2,
       "gc_ms": 4,
-      "retained_bytes_per_event": 1697.478
+      "retained_bytes_per_event": 1697.478,
+      "variant": true
     },
     {
       "parser": "quartz-loop-plain",
@@ -1191,7 +1217,8 @@
       "allocs_per_event": null,
       "gc_count": 3,
       "gc_ms": 6,
-      "retained_bytes_per_event": 1049.211
+      "retained_bytes_per_event": 1049.211,
+      "variant": true
     },
     {
       "parser": "quartz-loop-plain",
@@ -1218,7 +1245,8 @@
       "allocs_per_event": null,
       "gc_count": 3,
       "gc_ms": 6,
-      "retained_bytes_per_event": 922.426
+      "retained_bytes_per_event": 922.426,
+      "variant": true
     },
     {
       "parser": "quartz-loop-plain",
@@ -1245,7 +1273,8 @@
       "allocs_per_event": null,
       "gc_count": 2,
       "gc_ms": 4,
-      "retained_bytes_per_event": 1976.912
+      "retained_bytes_per_event": 1976.912,
+      "variant": true
     },
     {
       "parser": "quartz-loop-plain",
@@ -1272,7 +1301,8 @@
       "allocs_per_event": null,
       "gc_count": 2,
       "gc_ms": 4,
-      "retained_bytes_per_event": 1231.791
+      "retained_bytes_per_event": 1231.791,
+      "variant": true
     },
     {
       "parser": "quartz-loop-plain",
@@ -1299,7 +1329,8 @@
       "allocs_per_event": null,
       "gc_count": 1,
       "gc_ms": 3,
-      "retained_bytes_per_event": 2760.63
+      "retained_bytes_per_event": 2760.63,
+      "variant": true
     },
     {
       "parser": "quartz-loop-plain",
@@ -1326,7 +1357,8 @@
       "allocs_per_event": null,
       "gc_count": 2,
       "gc_ms": 5,
-      "retained_bytes_per_event": 11350.4
+      "retained_bytes_per_event": 11350.4,
+      "variant": true
     },
     {
       "parser": "jackson-streaming-bytes",
