@@ -63,6 +63,28 @@ How it measures:
   `ParsedJson` that the next parse overwrites, so there is nothing a client could keep.
   Slice capacity counts too: segmentio starts every slice at capacity 10, so each tag
   carries room for 10 strings.
+- **Objects.** `allocs_per_event` (`Mallocs` over the measured rounds) is the objects one
+  parse creates. `retained_objects_per_event` comes from the same keep passes as retained
+  bytes: `MemStats.HeapObjects` after the second `runtime.GC()` minus before, per event,
+  median of the same 3 passes, null wherever retained bytes is null. The results slice
+  is not counted; a by-value result (`sonic-ast`'s `ast.Node`) counts as 1 object. A frame
+  copy counts only when a result keeps it alive, and then once however many strings point
+  into it (`sonic-typed`, `segmentio-borrowed`, `sonic-ast`; `gjson-typed` keeps one copy
+  of the tags text). An owned `Event` is 1 object + one per string of 2 bytes or more (a
+  1-byte string such as `"e"` is a static runtime string, an empty one is nothing) + the
+  tags slice + one slice per tag. Exceptions: `fiatjaf-nostr-typed` keeps id/pubkey/sig as
+  arrays inside the Event (3 objects fewer), `goccy-typed` copies strings up to 512 bytes
+  into a 16 KiB arena shared by many events (almost no string objects), and `jsonv2-typed`
+  interns repeated strings of 2 to 256 bytes in its decoder's cache (shared between
+  events). The `objects_note` of each row says which applies.
+  `HeapObjects` counts a tiny-allocator block (pointer-free allocations under 16 bytes,
+  packed into 16-byte blocks) as one object, so short strings such as `"root"` can count
+  for less than one each: on `notes` an owned Event retains 15.8–16.3 objects against
+  17.4 allocations kept. A `-race` build disables the tiny allocator (and makes
+  `sync.Pool` drop items, so ignore its pooled parsers): there `stdlib-typed` and
+  `easyjson-typed` retain exactly the hand count from the corpus, 17.4 on `notes` and
+  11.9 on `reactions`. `allocs_per_event` counts every allocation, so garbage computed as
+  `allocs − retained` slightly overstates it.
 - **Sink.** Typed rows fold `kind + len(tags) + len(content)` into the sink. Dom rows
   fold only `kind` and the tag count, as HARNESS.md specifies. The sink is printed and
   stored per row (`sink`).
