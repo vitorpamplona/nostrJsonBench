@@ -22,9 +22,9 @@ and version.
 ## Input: the text frame
 
 A WebSocket text frame reaches a JS app as a `string` (`MessageEvent.data` in browsers,
-Node 22's global `WebSocket`, Bun, Deno), so every parser starts from a string, prepared
-before timing with `TextDecoder` (a flat, sequential string, like the one a socket hands
-over). `input` follows [`HARNESS.md`](../HARNESS.md):
+Node 22's global `WebSocket`, Bun, Deno), so every parser starts from a string, built
+untimed with `TextDecoder.decode` (a new, flat string, like the one a socket hands over).
+`input` follows [`HARNESS.md`](../HARNESS.md):
 
 - `string`: the parser takes the string itself.
 - `string→bytes`: the parser only reads bytes, so the string is UTF-8 encoded inside the
@@ -41,6 +41,30 @@ The old `json-parse-bytes` (`TextDecoder` + `JSON.parse` from a `Uint8Array`) an
 `baseline-utf8-decode` rows were dropped: no WebSocket client hands a text frame over as a
 `Uint8Array`. The `ws` Buffer path stays as an extra because `ws` is what most Node relays
 and bots use.
+
+## Timing: bursts of fresh frames
+
+Rounds follow the "Arrival" rule in [`HARNESS.md`](../HARNESS.md). A round walks the
+workload in bursts of `--burst` frames (default 64; `--quick` keeps it). For each burst,
+untimed, every frame is decoded again from the line's bytes with `TextDecoder.decode`
+(`Buffer.from` for the `ws` extras). Then the burst's parses are timed, one per frame.
+Then the frames are dropped. Each decode returns a new string, so nothing carries over
+between rounds (checked: 20,000 kept decodes of one line grow the heap by a full string
+each on all three engines). A round's time is the sum of its bursts. Warm-up runs the
+same burst rounds.
+
+The burst clock is the cheapest nanosecond clock of each runtime. All tick in 1 ns steps.
+
+| | clock | cost per call | `process.hrtime.bigint()` |
+|---|---|---|---|
+| Node 22 | `performance.now()` | ~40 ns | ~86 ns |
+| Deno 2.9 | `performance.now()` (the global; the `node:perf_hooks` one costs ~138 ns) | ~86 ns | ~234 ns |
+| Bun 1.4 | `Bun.nanoseconds()` | ~36 ns | ~53 ns |
+
+Two reads per burst cost under 0.3% of a 64-event burst (~50–100 µs).
+
+The digest, the retained-heap and kept-objects passes and the allocation tracker run
+untimed, as before.
 
 ## Parsers
 
@@ -84,10 +108,18 @@ That is probably a backlog of native finalizers; it was not investigated.
 
 ## Memory and GC
 
+Deno's alloc bytes and Node's GC counters cannot be read per burst without counting the
+frame strings: decoding allocates them, and their garbage triggers collections. So
+`alloc_bytes_per_event`, `gc_count` and `gc_ms` come from a separate untimed pass after
+timing. It runs as many rounds as were measured of the old tight loop over the preloaded
+frame strings, so it covers the parses only. Each row's `notes` says so. `gc_count` and
+`gc_ms` are every Node `gc` entry (minor, major, incremental, weak-callback) that starts
+inside that pass. They are totals over the pass, not per round.
+
 | | `gc_count` / `gc_ms` | `alloc_bytes_per_event` | `retained_bytes_per_event` |
 |---|---|---|---|
-| Node 22 | `PerformanceObserver` `gc` entries that start inside the measured window | null: V8 12.4 has no cumulative allocation counter | `process.memoryUsage().heapUsed`, children run with `--expose-gc` |
-| Deno 2.9 | null: lists `gc` as supported but delivers no entries | `v8.getHeapStatistics().total_allocated_bytes` delta (V8 15 cumulative counter), V8 heap only: excludes native memory such as the simdjson addon's buffers | as Node, children run with `--v8-flags=--expose-gc` |
+| Node 22 | `PerformanceObserver` `gc` entries that start inside the memory pass | null: V8 12.4 has no cumulative allocation counter | `process.memoryUsage().heapUsed`, children run with `--expose-gc` |
+| Deno 2.9 | null: lists `gc` as supported but delivers no entries | `v8.getHeapStatistics().total_allocated_bytes` delta over the memory pass (V8 15 cumulative counter), V8 heap only: excludes native memory such as the simdjson addon's buffers | as Node, children run with `--v8-flags=--expose-gc` |
 | Bun 1.4 | null: JSC exposes no GC events | null: the `node:v8` shim's `total_allocated_bytes` does not track JS allocation | `bun:jsc` `heapStats().heapSize` after `Bun.gc(true)` |
 
 **Objects kept and created** (`retained_objects_per_event`, `allocs_per_event`, how in

@@ -252,6 +252,7 @@ function parseArgs(argv) {
     warmupMs: 1000,
     minTimeMs: 2000,
     minRounds: 5,
+    burst: 64,
     list: false,
     child: null,
   };
@@ -269,12 +270,14 @@ function parseArgs(argv) {
       case '--warmup-ms': o.warmupMs = Number(val()); break;
       case '--min-time-ms': o.minTimeMs = Number(val()); break;
       case '--min-rounds': o.minRounds = Number(val()); break;
+      case '--burst': o.burst = Number(val()); break;
       case '--quick': o.warmupMs = 200; o.minTimeMs = 300; o.minRounds = 3; break;
       case '--list': o.list = true; break;
       case '--child': o.child = val(); break;
       default: throw new Error(`unknown argument: ${a}`);
     }
   }
+  if (!Number.isInteger(o.burst) || o.burst < 1) throw new Error(`--burst must be an integer >= 1, got ${o.burst}`);
   if (!o.out) o.out = path.join(BENCH, 'results', `${RT}.json`);
   return o;
 }
@@ -336,7 +339,21 @@ function median(sorted) {
   return n % 2 ? sorted[(n - 1) >> 1] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
 }
 
+// Monotonic clocks, in ns. The timed one is read twice per burst (a 64-event burst is
+// ~50-100 µs), so it is the cheapest ns clock of each runtime; all three tick in 1 ns
+// steps. Per call (min of runs on the bench host): Bun.nanoseconds() ~36 ns, an
+// integer (performance.now ~40, process.hrtime.bigint ~53); Node and Deno
+// globalThis.performance.now(), a double in ms with ns digits, ~40 ns on Node
+// (process.hrtime.bigint ~86) and ~86 ns on Deno (the node:perf_hooks export ~138,
+// process.hrtime.bigint ~234). nowNs is only for deadlines.
 const nowNs = () => Number(process.hrtime.bigint());
+const burstClockNs = RT === 'bun'
+  ? () => Bun.nanoseconds()
+  : (() => {
+      const perf = globalThis.performance;
+      return () => perf.now() * 1e6;
+    })();
+const BURST_CLOCK = RT === 'bun' ? 'Bun.nanoseconds()' : 'performance.now()';
 
 function allocCounter() {
   // V8 >= ~13 exposes a cumulative total_allocated_bytes (Deno 2.9 has it, Node 22's V8 12.4
@@ -737,50 +754,86 @@ async function runChild(opts, manifest, workloads) {
     }
 
     const n = inputs.length;
-    const round = () => {
+
+    // One round under HARNESS.md "Arrival": for each burst of --burst frames, build the
+    // frames untimed from the lines' UTF-8 bytes with makeFrame (TextDecoder.decode: a
+    // new string per call, like MessageEvent.data; Buffer.from for the `ws` rows), time
+    // the parses, then drop the frames. Nothing is cached across rounds: every round
+    // decodes every frame again. Returns the timed ns (the sum of the bursts); the fold
+    // sink goes to roundSink.
+    const burst = opts.burst;
+    const frames = new Array(burst).fill(null);
+    let roundSink = 0;
+    const burstRound = () => {
+      let s = 0;
+      let ns = 0;
+      for (let b = 0; b < n; b += burst) {
+        const m = Math.min(burst, n - b);
+        for (let j = 0; j < m; j++) frames[j] = makeFrame(raw[b + j]);
+        const c0 = burstClockNs();
+        for (let j = 0; j < m; j++) s += fold(parse(frames[j]));
+        ns += burstClockNs() - c0;
+        frames.fill(null); // drop: the frames are garbage now, like the socket's
+      }
+      roundSink += s;
+      return ns;
+    };
+    // The pre-burst loop over the preloaded frame strings, used only by the untimed
+    // memory pass below.
+    const tightRound = () => {
       let s = 0;
       for (let i = 0; i < n; i++) s += fold(parse(inputs[i]));
       return s;
     };
 
-    // 3. warm up
+    // 3. warm up (burst rounds, like the measured ones)
     let sink = 0;
     const wEnd = nowNs() + opts.warmupMs * 1e6;
-    do sink += round(); while (nowNs() < wEnd);
+    do burstRound(); while (nowNs() < wEnd);
 
     // 4. measure
     const times = [];
-    const t0 = performance.now();
-    const a0 = alloc ? alloc() : 0;
-    const mStart = nowNs();
-    const mEnd = mStart + opts.minTimeMs * 1e6;
-    let last = mStart;
+    const mEnd = nowNs() + opts.minTimeMs * 1e6;
     while (times.length < 10000) {
-      sink += round();
-      const t = nowNs();
-      times.push(t - last);
-      last = t;
-      if (times.length >= opts.minRounds && t >= mEnd) break;
+      times.push(burstRound());
+      if (times.length >= opts.minRounds && nowNs() >= mEnd) break;
     }
-    const a1 = alloc ? alloc() : 0;
-    const t1 = performance.now();
+    sink += roundSink;
+
+    // 4b. memory pass (untimed): the counters read today (Deno's total_allocated_bytes,
+    // Node's gc entries) cannot be taken around each burst without counting the frame
+    // strings (decoding allocates them, and their garbage drives collections), so they
+    // come from as many rounds as were measured of the old loop over the preloaded
+    // frame strings: the parses only.
+    let memNote = null;
+    if (alloc || gcRec) {
+      const t0 = performance.now();
+      const a0 = alloc ? alloc() : 0;
+      for (let r = 0; r < times.length; r++) sink += tightRound();
+      const a1 = alloc ? alloc() : 0;
+      const t1 = performance.now();
+      if (alloc) row.alloc_bytes_per_event = (a1 - a0) / (times.length * w.events);
+      if (gcRec) {
+        const g = await gcRec.collect(t0, t1);
+        row.gc_count = g.count;
+        row.gc_ms = g.ms;
+      }
+      memNote = `${alloc ? 'alloc_bytes_per_event is' : 'gc_count and gc_ms are'} taken in a separate untimed pass after timing: as many rounds as were measured (${times.length}) of a tight loop over the preloaded frame strings, so they cover the parses only, not the burst frames' decoding` +
+        (gcRec ? '; they count every gc entry (minor, major, incremental, weak-callback) that starts inside that pass' : '');
+    }
     sinkAll += sink;
 
     times.sort((a, b) => a - b);
     const med = median(times);
     row.rounds = times.length;
     row.median_ns = Math.round(med);
-    row.min_ns = times[0];
-    row.p90_ns = percentile(times, 0.9);
+    row.min_ns = Math.round(times[0]);
+    row.p90_ns = Math.round(percentile(times, 0.9));
     row.ns_per_event = med / w.events;
     row.mb_per_s = w.bytes / (med / 1e9) / 1e6;
     row.events_per_s = w.events / (med / 1e9);
-    if (alloc) row.alloc_bytes_per_event = (a1 - a0) / (times.length * w.events);
-    if (gcRec) {
-      const g = await gcRec.collect(t0, t1);
-      row.gc_count = g.count;
-      row.gc_ms = g.ms;
-    }
+    row.notes = `${P.notes}. Timing: bursts of ${burst} frames, each built untimed with ${P.frame === 'buffer' ? 'Buffer.from(line bytes)' : 'TextDecoder.decode(line bytes)'} and dropped after its timed parses; clock ${BURST_CLOCK}` +
+      (memNote ? `. ${memNote}` : '');
     // 5. retained heap (untimed), not for baselines or results held outside the JS heap
     if (probe && P.mode !== 'baseline' && P.retained !== false) {
       const r = measureRetained(probe, parse, raw, makeFrame);
@@ -862,6 +915,7 @@ async function main() {
     '--warmup-ms', String(opts.warmupMs),
     '--min-time-ms', String(opts.minTimeMs),
     '--min-rounds', String(opts.minRounds),
+    '--burst', String(opts.burst),
   ];
   const results = [];
   for (const p of parsers) {
@@ -891,7 +945,7 @@ async function main() {
     language: 'JavaScript',
     runtime: runtimeInfo().label,
     host: hostInfo(),
-    settings: { warmup_ms: opts.warmupMs, min_time_ms: opts.minTimeMs, min_rounds: opts.minRounds },
+    settings: { warmup_ms: opts.warmupMs, min_time_ms: opts.minTimeMs, min_rounds: opts.minRounds, burst: opts.burst },
     corpus_fingerprint: manifest.fingerprint,
     results,
   };
