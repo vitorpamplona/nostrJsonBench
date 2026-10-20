@@ -23,9 +23,13 @@ from `cargo metadata`, read at build time (`build.rs`).
 ## Input: the text frame
 
 A Nostr WebSocket text frame reaches a Rust app as a `&str` (tungstenite
-`Message::Text(Utf8Bytes)`), already UTF-8-validated by the socket. The harness turns every
-line into a `String` before timing (validated once, untimed) and every parser starts from that
-`&str` inside the timed loop:
+`Message::Text(Utf8Bytes)`), already UTF-8-validated by the socket. A timed round walks the
+workload in bursts of `--burst` frames (default 64). For each burst the harness builds the
+frames fresh, untimed, as tungstenite does (`String::from_utf8(bytes.to_vec())`), times the
+parses with `Instant`, then drops the frames. A round's time is the sum of its bursts; warm-up
+runs the same rounds. The allocation counters are read around each burst's timed part only, so
+the frame copies are not in `alloc_bytes_per_event` or `allocs_per_event`. Verify, the digest
+and the retained pass parse the preloaded lines. Every parser starts from the frame's `&str`:
 
 - `string`: the row calls the library's `&str` entry point (`serde_json::from_str`,
   `sonic_rs::from_str`, `jiter::serde::from_str`, `miniserde`/`nanoserde`/`json`/`tinyjson`), or,

@@ -6,9 +6,10 @@ use sha2::Sha256;
 use std::hint::black_box;
 
 /// One input line: what a WebSocket text frame is in Rust, a `&str` (tungstenite
-/// `Message::Text(Utf8Bytes)`), already UTF-8-validated by the socket. The harness builds it
-/// (as a leaked `String`, so results can borrow it for `'static`) before timing; every parser
-/// starts from it, and any copy it needs on top is part of the timed parse.
+/// `Message::Text(Utf8Bytes)`), already UTF-8-validated by the socket. Timed rounds point it at
+/// a frame built fresh for its burst (untimed, dropped after the burst); verify, the digest and
+/// the retained pass point it at the preloaded, leaked lines. Every parser starts from it, and
+/// any copy it needs on top is part of the timed parse.
 #[derive(Clone, Copy)]
 pub struct Line {
     pub s: &'static str,
@@ -43,7 +44,8 @@ pub trait Parser {
         let _ = lines;
         None
     }
-    /// One timed round over the workload; monomorphized per parser, so `fold` inlines.
+    /// Parses `lines` once (the harness times one burst of frames per call); monomorphized
+    /// per parser, so `fold` inlines.
     #[inline(never)]
     fn round(&mut self, lines: &[Line]) -> u64 {
         let mut sink = 0u64;
