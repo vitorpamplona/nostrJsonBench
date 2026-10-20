@@ -22,6 +22,9 @@ minimalJson = "0.9.5"
 jsonSmart = "2.6.0"
 jsoniterScala = "2.41.6"
 scala3 = "3.3.8"
+# Not a parser: the bytecode agent that counts allocations (allocs_per_event) in a
+# separate, untimed child JVM. Apache-2.0 (checked against its published POM).
+allocationInstrumenter = "3.3.5"
 
 [libraries]
 quartz = { group = "com.vitorpamplona.quartz", name = "quartz", version.ref = "quartz" }
@@ -41,6 +44,7 @@ minimaljson = { group = "com.eclipsesource.minimal-json", name = "minimal-json",
 jsonsmart = { group = "net.minidev", name = "json-smart", version.ref = "jsonSmart" }
 jsoniter-scala-core = { group = "com.github.plokhotnyuk.jsoniter-scala", name = "jsoniter-scala-core_3", version.ref = "jsoniterScala" }
 jsoniter-scala-macros = { group = "com.github.plokhotnyuk.jsoniter-scala", name = "jsoniter-scala-macros_3", version.ref = "jsoniterScala" }
+allocation-instrumenter = { group = "com.google.code.java-allocation-instrumenter", name = "java-allocation-instrumenter", version.ref = "allocationInstrumenter" }
 scala3-library = { group = "org.scala-lang", name = "scala3-library_3", version.ref = "scala3" }
 
 [plugins]

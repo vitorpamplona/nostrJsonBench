@@ -23,6 +23,7 @@ package com.vitorpamplona.jsonbench
 import com.sun.management.ThreadMXBean
 import java.lang.management.ManagementFactory
 import java.lang.ref.Reference
+import javax.management.ObjectName
 
 /**
  * One parser under test. Every concrete parser is its own final class, so the hot loop in
@@ -120,6 +121,51 @@ class Verification(
     val firstError: String?,
 )
 
+/**
+ * The retained-heap pass: [bytes] still in use for all kept results, and the live objects
+ * they add per class ([objects], JVM class names as the histogram prints them; null when
+ * the histogram could not be taken).
+ */
+class Retained(
+    val bytes: Long,
+    val objects: Map<String, Long>?,
+) {
+    val totalObjects: Long? get() = objects?.values?.sum()
+
+    /** The [n] classes that add the most live instances, per event, with readable names. */
+    fun topClasses(
+        events: Int,
+        n: Int = 5,
+    ): List<Map<String, Any?>>? =
+        objects
+            ?.entries
+            ?.sortedByDescending { it.value }
+            ?.take(n)
+            ?.map { linkedMapOf("class" to javaName(it.key), "per_event" to it.value / events.toDouble()) }
+
+    companion object {
+        /** `[B` -> `byte[]`, `[[Ljava.lang.String;` -> `java.lang.String[][]`. */
+        fun javaName(jvm: String): String {
+            var dims = 0
+            while (dims < jvm.length && jvm[dims] == '[') dims++
+            if (dims == 0) return jvm
+            val element =
+                when (val rest = jvm.substring(dims)) {
+                    "B" -> "byte"
+                    "C" -> "char"
+                    "S" -> "short"
+                    "I" -> "int"
+                    "J" -> "long"
+                    "F" -> "float"
+                    "D" -> "double"
+                    "Z" -> "boolean"
+                    else -> if (rest.startsWith("L") && rest.endsWith(";")) rest.substring(1, rest.length - 1) else rest
+                }
+            return element + "[]".repeat(dims)
+        }
+    }
+}
+
 class Measurement(
     val rounds: Int,
     val medianNs: Long,
@@ -165,12 +211,13 @@ object Runner {
      * alive, as a client keeps the events it shows (HARNESS.md "retained"). This is where
      * de-duplication such as String.intern() pays off: equal pubkeys, ids and tag values
      * are then one object instead of one per event. Median of three runs, each measured
-     * between full collections; the array holding the results is not counted.
+     * between full collections; the array holding the results is not counted. Then one
+     * more keep pass counts the live objects (see [retainedObjects]).
      */
     fun <I : Any> retained(
         parser: BenchParser<I>,
         inputs: Array<I>,
-    ): Long? {
+    ): Retained? {
         if (parser.keep(inputs[0]) == null) return null
         val runs = LongArray(3)
         for (r in runs.indices) {
@@ -184,7 +231,82 @@ object Runner {
             runs[r] = after - before
         }
         runs.sort()
-        return runs[1]
+        val objects =
+            try {
+                retainedObjects(parser, inputs)
+            } catch (t: Throwable) {
+                System.err.println("    retained objects not counted: ${t.javaClass.name}: ${t.message?.take(300)}")
+                null
+            }
+        return Retained(runs[1], objects)
+    }
+
+    /**
+     * Live objects the kept results add, by class: a class histogram (`GC.class_histogram`,
+     * which runs a full collection and counts live instances only) before and after keeping
+     * every result. The array holding the results exists before the first histogram, so it
+     * is not counted. A calibration pair of histograms with nothing kept in between is
+     * subtracted class by class, which removes what taking a histogram leaves behind (the
+     * first histogram's own text, MBean bookkeeping).
+     */
+    private fun <I : Any> retainedObjects(
+        parser: BenchParser<I>,
+        inputs: Array<I>,
+    ): Map<String, Long> {
+        classHistogram() // first use builds the platform MBean server; keep that out of both pairs
+
+        val idle = arrayOfNulls<Any>(inputs.size)
+        val idleBefore = classHistogram()
+        val idleAfter = classHistogram()
+        Reference.reachabilityFence(idle)
+
+        val kept = arrayOfNulls<Any>(inputs.size)
+        val keptBefore = classHistogram()
+        for (i in inputs.indices) kept[i] = parser.keep(inputs[i])
+        val keptAfter = classHistogram()
+        Reference.reachabilityFence(kept)
+
+        val calibration = histogramDelta(parseHistogram(idleBefore), parseHistogram(idleAfter))
+        val delta = histogramDelta(parseHistogram(keptBefore), parseHistogram(keptAfter))
+        val out = HashMap<String, Long>()
+        for (cls in delta.keys + calibration.keys) {
+            val d = (delta[cls] ?: 0) - (calibration[cls] ?: 0)
+            if (d != 0L) out[cls] = d
+        }
+        return out
+    }
+
+    private val diagnosticCommand = ObjectName("com.sun.management:type=DiagnosticCommand")
+
+    /** `jcmd <pid> GC.class_histogram` from inside: full GC, then live instances per class, as text. */
+    private fun classHistogram(): String =
+        ManagementFactory.getPlatformMBeanServer().invoke(
+            diagnosticCommand,
+            "gcClassHistogram",
+            arrayOf<Any>(arrayOf<String>()),
+            arrayOf(Array<String>::class.java.name),
+        ) as String
+
+    // "   1:         12345        6789012  [B (java.base@21.0.1)"
+    private val histogramRow = Regex("""^\s*\d+:\s+(\d+)\s+\d+\s+(\S+)""")
+
+    private fun parseHistogram(text: String): Map<String, Long> {
+        val out = HashMap<String, Long>()
+        for (line in text.lineSequence()) {
+            val m = histogramRow.find(line) ?: continue
+            val cls = m.groupValues[2]
+            out[cls] = (out[cls] ?: 0) + m.groupValues[1].toLong()
+        }
+        return out
+    }
+
+    private fun histogramDelta(
+        before: Map<String, Long>,
+        after: Map<String, Long>,
+    ): Map<String, Long> {
+        val out = HashMap<String, Long>()
+        for (cls in before.keys + after.keys) out[cls] = (after[cls] ?: 0) - (before[cls] ?: 0)
+        return out
     }
 
     private fun usedHeap(): Long = ManagementFactory.getMemoryMXBean().heapMemoryUsage.used

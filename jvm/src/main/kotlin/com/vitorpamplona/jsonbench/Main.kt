@@ -44,6 +44,8 @@ class Args(
     var list: Boolean = false,
     var childParser: String? = null,
     var childOut: String? = null,
+    /** In a child: count allocations (in the JVM started with the agent) instead of timing. */
+    var childCount: Boolean = false,
 ) {
     fun settings() = Settings(warmupMs, minTimeMs, minRounds)
 
@@ -73,6 +75,7 @@ class Args(
                     "--list" -> a.list = true
                     "--child-parser" -> a.childParser = next()
                     "--child-out" -> a.childOut = next()
+                    "--child-count" -> a.childCount = true
                     "-h", "--help" -> usage(null)
                     else -> usage("unknown argument: $arg")
                 }
@@ -139,7 +142,9 @@ fun main(argv: Array<String>) {
         PARSERS.forEach { println(it.id) }
         return
     }
-    if (args.childParser != null) {
+    if (args.childParser != null && args.childCount) {
+        CountChild.run(args)
+    } else if (args.childParser != null) {
         Child.run(args)
     } else {
         Parent.run(args)
@@ -215,7 +220,7 @@ object Child {
             }
         }
 
-        var retained: Long? = null
+        var retained: Retained? = null
         if (v.errors == 0) {
             try {
                 retained = Runner.retained(parser, inputs)
@@ -255,10 +260,14 @@ object Child {
             row["events_per_s"] = null
             row["alloc_bytes_per_event"] = null
         }
+        // Filled in by the parent from the separate counting JVM (CountChild).
         row["allocs_per_event"] = null
         row["gc_count"] = m?.gcCount
         row["gc_ms"] = m?.gcMs
-        row["retained_bytes_per_event"] = retained?.let { it / w.events.toDouble() }
+        row["retained_bytes_per_event"] = retained?.let { it.bytes / w.events.toDouble() }
+        row["retained_objects_per_event"] = retained?.totalObjects?.let { it / w.events.toDouble() }
+        row["retained_top_classes"] = retained?.topClasses(w.events)
+        row["objects_note"] = null
 
         val status =
             when (digestOk) {
@@ -270,13 +279,14 @@ object Child {
             System.err.println(
                 String.format(
                     java.util.Locale.ROOT,
-                    "  %-26s %-10s %9.1f MB/s %10.0f ns/ev %9.0f B/ev %7.0f kept B/ev  %4d rounds  gc %d/%dms  %s",
+                    "  %-26s %-10s %9.1f MB/s %10.0f ns/ev %9.0f B/ev %7.0f kept B/ev %5.1f kept obj/ev  %4d rounds  gc %d/%dms  %s",
                     spec.id,
                     w.name,
                     row["mb_per_s"] as Double,
                     row["ns_per_event"] as Double,
                     (row["alloc_bytes_per_event"] as Double?) ?: Double.NaN,
                     (row["retained_bytes_per_event"] as Double?) ?: Double.NaN,
+                    (row["retained_objects_per_event"] as Double?) ?: Double.NaN,
                     m.rounds,
                     m.gcCount ?: -1,
                     m.gcMs ?: -1,
@@ -287,6 +297,54 @@ object Child {
             System.err.println("  ${spec.id.padEnd(26)} ${w.name.padEnd(10)} not timed  $status")
         }
         return row
+    }
+}
+
+/** What every counted row says about how its object counts were taken (HARNESS.md "objects_note"). */
+val OBJECTS_NOTE =
+    "allocs_per_event: bytecode-level count (java-allocation-instrumenter ${Versions["java-allocation-instrumenter"]} " +
+        "agent, separate untimed JVM, parse thread only, fewest of ${AllocAgent.COUNTED_PASSES} passes after " +
+        "${AllocAgent.WARMUP_PASSES} warm-up passes; Strings counted in String's constructors), before JIT escape " +
+        "analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live " +
+        "instances added, from GC.class_histogram before/after keeping every result."
+
+/**
+ * The allocation-counting child: runs in a JVM started with the agent (see [AllocCount]),
+ * after and apart from the timed child, so instrumentation never touches a timing. Writes
+ * `{workload: allocs_per_event}`; a workload whose parse throws is left out.
+ */
+object CountChild {
+    fun run(args: Args) {
+        val spec = PARSERS.firstOrNull { it.id == args.childParser } ?: Args.usage("unknown parser ${args.childParser}")
+        if (!AllocAgent.agentLoaded()) {
+            System.err.println("jsonbench: --child-count needs -javaagent:java-allocation-instrumenter.jar")
+            exitProcess(2)
+        }
+        val corpusDir = File(args.corpus)
+        val manifest = Manifest.load(corpusDir)
+        val workloads = selectWorkloads(manifest, args)
+        val parser = spec.create()
+        val out = LinkedHashMap<String, Any?>()
+        for (w in workloads) count(spec, parser, w, corpusDir)?.let { out[w.name] = it }
+        File(args.childOut!!).writeText(MiniJson.write(out).toString())
+        System.err.println("    (sink ${Runner.blackhole})")
+    }
+
+    private fun <I : Any> count(
+        spec: ParserSpec,
+        parser: BenchParser<I>,
+        w: Workload,
+        corpusDir: File,
+    ): Double? {
+        val inputs = parser.prepareAll(readLines(File(corpusDir, w.file)))
+        return try {
+            AllocCount.perEvent(parser, inputs).also {
+                System.err.println(String.format(java.util.Locale.ROOT, "  %-26s %-10s %9.1f objects/ev created (bytecode count)", spec.id, w.name, it))
+            }
+        } catch (t: Throwable) {
+            System.err.println("  ${spec.id.padEnd(26)} ${w.name.padEnd(10)} allocations not counted: ${t.javaClass.name}: ${t.message?.take(300)}")
+            null
+        }
     }
 }
 
@@ -328,6 +386,10 @@ object Parent {
                 "GC $gc, ${shownArgs.joinToString(" ")}, one JVM per parser, Quartz ${Versions["quartz"]}"
 
         System.err.println("jsonbench (jvm): ${specs.size} parsers x ${workloads.size} workloads; $runtimeString")
+        val agent = AllocAgent.agentJar()
+        if (agent == null) {
+            System.err.println("jsonbench: allocation agent not found (agent/ next to lib/, or -Djsonbench.allocAgent); allocs_per_event stays null")
+        }
 
         val results = ArrayList<Any?>()
         for (spec in specs) {
@@ -350,6 +412,11 @@ object Parent {
                         .waitFor()
                 val rows = if (code == 0 && tmp.length() > 0) MiniJson.parse(tmp.readText()) as? List<*> else null
                 if (rows != null) {
+                    if (agent != null) {
+                        // A second, untimed JVM with the agent: counting never runs where timing does.
+                        val counts = countAllocations(java, jvmArgs + AllocAgent.childJvmArgs(agent), classpath, spec, workloads, corpusDir)
+                        mergeCounts(rows, counts)
+                    }
                     results.addAll(rows)
                 } else {
                     System.err.println("  child JVM for ${spec.id} exited with code $code")
@@ -390,6 +457,56 @@ object Parent {
         System.err.println("wrote ${outFile.path}")
     }
 
+    /** Runs [CountChild] for [spec]; returns workload -> allocs per event (missing when it failed). */
+    private fun countAllocations(
+        java: String,
+        jvmArgs: List<String>,
+        classpath: String,
+        spec: ParserSpec,
+        workloads: List<Workload>,
+        corpusDir: File,
+    ): Map<String, Double> {
+        val tmp = File.createTempFile("jsonbench-count-${spec.id}-", ".json")
+        try {
+            val cmd = ArrayList<String>()
+            cmd += java
+            cmd += jvmArgs
+            cmd += listOf("-cp", classpath, "com.vitorpamplona.jsonbench.MainKt")
+            cmd += listOf("--child-parser", spec.id, "--child-count", "--child-out", tmp.path, "--corpus", corpusDir.path)
+            cmd += listOf("--workloads", workloads.joinToString(",") { it.name })
+            val code =
+                ProcessBuilder(cmd)
+                    .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+                    .redirectError(ProcessBuilder.Redirect.INHERIT)
+                    .start()
+                    .waitFor()
+            if (code != 0 || tmp.length() == 0L) {
+                System.err.println("  allocation-counting JVM for ${spec.id} exited with code $code")
+                return emptyMap()
+            }
+            val out = HashMap<String, Double>()
+            (MiniJson.parse(tmp.readText()) as? Map<*, *>)?.forEach { (k, v) -> if (k is String && v is Number) out[k] = v.toDouble() }
+            return out
+        } finally {
+            if (!tmp.delete() && tmp.exists()) System.err.println("  could not delete $tmp")
+        }
+    }
+
+    /** Puts the counted allocations into the timed rows (only rows that were timed). */
+    private fun mergeCounts(
+        rows: List<*>,
+        counts: Map<String, Double>,
+    ) {
+        for (r in rows) {
+            @Suppress("UNCHECKED_CAST")
+            val row = r as? MutableMap<String, Any?> ?: continue
+            val allocs = counts[row["workload"]]
+            if (allocs == null || row["median_ns"] == null) continue
+            row["allocs_per_event"] = allocs
+            row["objects_note"] = OBJECTS_NOTE
+        }
+    }
+
     private fun failedRow(
         spec: ParserSpec,
         w: Workload,
@@ -422,6 +539,9 @@ object Parent {
             "gc_count" to null,
             "gc_ms" to null,
             "retained_bytes_per_event" to null,
+            "retained_objects_per_event" to null,
+            "retained_top_classes" to null,
+            "objects_note" to null,
         )
 
     private fun gcName(beans: List<String>): String =

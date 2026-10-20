@@ -25,7 +25,9 @@ Extra JVM flags go through `JAVA_OPTS`.
 - **One JVM per parser.** The process you start only orchestrates: for each parser it
   forks a child with the same `java`, classpath and JVM flags (`-Xms2g -Xmx2g
   -XX:+UseG1GC --add-modules jdk.incubator.vector`). The child verifies and times that
-  parser on every selected workload and hands its rows back through a temp file. The
+  parser on every selected workload and hands its rows back through a temp file. A
+  second child, started only after the first has exited, counts that parser's
+  allocations (see "Objects created" below), so the agent never runs where timing does. The
   harness's own manifest/result JSON goes through a tiny hand-written reader/writer
   (`MiniJson.kt`), so no measured library is loaded or JIT-profiled before its turn.
 - **Monomorphic hot loop.** Each parser is its own class whose `parseAll(inputs)` holds
@@ -35,9 +37,55 @@ Extra JVM flags go through `JAVA_OPTS`.
   SHA-256 digest of HARNESS.md; DOM results are converted to an `Event` for this step
   only. A parser that throws is not timed.
 - **Memory.** Over the measured rounds only: `ThreadMXBean.getThreadAllocatedBytes`
-  for the benchmark thread (`allocs_per_event` is null: the JVM does not count
-  allocations) and the summed `GarbageCollectorMXBean` count/time deltas. `System.gc()`
-  runs once between warm-up and measurement.
+  for the benchmark thread (`alloc_bytes_per_event`) and the summed
+  `GarbageCollectorMXBean` count/time deltas. `System.gc()` runs once between warm-up and
+  measurement.
+- **Retained heap.** After timing, the same child parses every event once more with the
+  parser's `keep` (its own result type: Quartz's `Event` subclass, a `JsonNode`…) and
+  keeps them all in one array. `retained_bytes_per_event` is the used-heap growth between
+  full collections (median of three such passes). One more pass counts the live objects:
+  a class histogram (the `gcClassHistogram` operation of the
+  `com.sun.management:type=DiagnosticCommand` MBean, i.e. `jcmd GC.class_histogram`,
+  which runs a full GC and counts live instances only) before and after keeping every
+  result. `retained_objects_per_event` is the total instance delta / events, and
+  `retained_top_classes` the five classes that add the most instances
+  (`[{"class": "java.lang.String", "per_event": 15.2}, …]`). The array that holds the
+  results exists before the first histogram, so it is not counted; a pair of histograms
+  with nothing kept in between is subtracted class by class to cancel what taking a
+  histogram leaves behind.
+- **Objects created (`allocs_per_event`).** HotSpot cannot count allocations, so after the
+  timed child exits the parent starts a **second, untimed child per parser** with
+  Google's [java-allocation-instrumenter](https://github.com/google/allocation-instrumenter)
+  as `-javaagent`. The agent rewrites the bytecode of every class, the JDK's included, so
+  each `new`/`newarray`/`anewarray`/`multianewarray`/`clone()`/`Array.newInstance` reports
+  to a sampler; the sampler only counts allocations on the parse thread while a flag is
+  set around the parser's own timed loop (`parseAll`). The child runs that loop over the
+  whole workload 3 times (class loading, one-time init), then counts 3 more passes and
+  reports the fewest objects per event: a pass can only gain spurious objects (a class
+  loaded mid-pass after a JIT uncommon trap allocates on the parse thread, and so does
+  the agent rewriting it), never lose real ones.
+  - **Strings are counted in `String`'s constructors**, not at their `new` sites (the
+    agent's `ConstructorInstrumenter`), because a site inside a hidden class (lambda
+    proxy, method-handle stub) cannot be rewritten: fastjson2 builds every String through
+    a `LambdaMetafactory` function over the JDK's package-private `String(byte[], byte)`
+    constructor, so a site count saw ~1 of its ~16 Strings per event. Strings the agent
+    makes for itself (the descriptor of a reflectively created array) are taken back out.
+  - C2 intrinsics that allocate on their own (`Arrays.copyOf`/`copyOfRange`,
+    `Array.newInstance`, `clone`, `StringUTF16.toBytes`,
+    `Unsafe.allocateUninitializedArray`) and C2's `StringBuilder` chain rewrite are off in
+    that JVM (`-XX:DisableIntrinsic=…`, `-XX:-OptimizeStringConcat`), so the instrumented
+    bytecode keeps running once compiled; counts then matched an interpreter-only
+    (`-Xint`) run on the parsers checked.
+  - The count is **bytecode-level**: it sees every allocation the code asks for *before*
+    the JIT's escape analysis removes or scalar-replaces any, so it can be higher than
+    what the compiled code really allocates (`alloc_bytes_per_event` is the JIT's real
+    number). Still not seen: non-String objects allocated inside hidden classes (a
+    capturing lambda's instance) and by native code. Each counted row says how it was
+    counted in `objects_note`.
+  - Debugging: `JAVA_OPTS=-Djsonbench.allocClasses=true` makes that child print the
+    count by class (approximate: the bookkeeping itself is counted for Strings).
+- **Garbage per parse** is `allocs_per_event − retained_objects_per_event`; the report
+  computes it.
 
 ## Parsers
 
@@ -74,6 +122,14 @@ checked against each artifact's published POM.
 Parsson and jakarta.json-api are EPL-2.0 / GPL-2.0-with-Classpath-exception (weak
 copyleft); everything else is permissive. None of it ships: this module is never a
 dependency of the app.
+
+The allocation counter, `com.google.code.java-allocation-instrumenter:java-allocation-instrumenter`
+3.3.5, is Apache-2.0 (its published POM and the jar's `META-INF/LICENSE`); the jar shades
+ASM (BSD-3-Clause) and Guava (Apache-2.0). It is a measurement tool, not a parser: the
+build only compiles against its `Sampler` API (`compileOnly`) and `installDist` copies the
+jar to `build/install/jsonbench/agent/`, outside `lib/`, so it is never on a timed JVM's
+class path. Elsewhere, point the harness at the jar with `-Djsonbench.allocAgent=…` or
+`JSONBENCH_ALLOC_AGENT`; without it `allocs_per_event` stays null.
 
 ## Caveats
 

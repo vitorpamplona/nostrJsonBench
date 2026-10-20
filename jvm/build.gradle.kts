@@ -69,10 +69,32 @@ val writeLibraryVersions by tasks.registering(WriteProperties::class) {
     property("minimal-json", libs.versions.minimalJson.get())
     property("json-smart", libs.versions.jsonSmart.get())
     property("jsoniter-scala", libs.versions.jsoniterScala.get())
+    property("java-allocation-instrumenter", libs.versions.allocationInstrumenter.get())
     // The Quartz under test: the release from the catalog, or the commit of a local
     // Amethyst checkout when built with -PquartzDir (see settings.gradle.kts).
     property("quartz", quartzUnderTest)
 }
+// The allocation-counting agent (allocs_per_event). It is never on the benchmark's
+// classpath: the parent passes it as -javaagent to a separate, untimed child JVM per
+// parser (see Main.kt), which appends it to the boot class path itself. The harness only
+// compiles against its Sampler API.
+val allocationAgent: Configuration =
+    configurations.create("allocationAgent") {
+        isTransitive = false
+    }
+distributions.main {
+    contents {
+        from(allocationAgent) {
+            into("agent")
+            rename { "java-allocation-instrumenter.jar" }
+        }
+    }
+}
+tasks.named<JavaExec>("run") {
+    val agent = allocationAgent
+    doFirst { systemProperty("jsonbench.allocAgent", agent.singleFile.absolutePath) }
+}
+
 sourceSets.main {
     resources.srcDir(writeLibraryVersions.map { generatedResources.get() })
 }
@@ -97,6 +119,10 @@ dependencies {
     implementation(libs.scala3.library)
     implementation(libs.jsoniter.scala.core)
     compileOnly(libs.jsoniter.scala.macros)
+
+    // Allocation counting: compile against the Sampler API, ship the jar as an agent.
+    compileOnly(libs.allocation.instrumenter)
+    allocationAgent(libs.allocation.instrumenter)
 
     // JNI secp256k1 backend quartz needs at runtime on plain JVM.
     runtimeOnly(libs.secp256k1.kmp.jni.jvm)
