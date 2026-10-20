@@ -21,8 +21,9 @@ Every event has exactly the seven NIP-01 fields: `id`, `pubkey`, `sig`, `content
 ## The task a parser performs
 
 **One parse = one event line → one in-memory event.** The harness loads every line
-of a workload into memory *before* timing, as the language's WebSocket text-frame type
-(see "Input" below), then times parsing all of them.
+of a workload into memory before timing. Each parse then starts the way it does in a running
+client: the parser is warmed up, and the frame is new, just built by the socket (see "Arrival"
+under Timing).
 
 Each parser entry declares a `mode`:
 
@@ -101,7 +102,26 @@ Per (workload, parser):
 1. load inputs; 2. verify (above, untimed); 3. warm up: full rounds for `--warmup-ms`;
 4. measure: full rounds until at least `--min-rounds` rounds **and** `--min-time-ms`
    have elapsed (stop at 10 000 rounds). One round parses every event of the workload once,
-   single-threaded, in file order. Time each round with a monotonic nanosecond clock.
+   single-threaded, in file order.
+
+**Arrival.** In a running client the parser is warm, but every frame is new: the socket
+has just built it, and it becomes garbage after the parse. A round reproduces that in
+bursts of `--burst` frames (default 64), as frames come off a socket read:
+
+1. Untimed: build the burst's frames fresh from the lines' UTF-8 bytes, the way the
+   WebSocket client does (JVM `new String(bytes, UTF_8)`, Rust `String::from_utf8`, C++ a
+   new `std::string`, Go a new `[]byte`, JS `TextDecoder.decode`, Python `bytes.decode`).
+2. Timed, with a monotonic nanosecond clock: parse the burst's frames, one parse per frame.
+3. Drop the frames, so they are garbage (or freed) like the socket's.
+
+A round's time is the sum of its bursts. Memory counters cover the parses only: read
+them around each burst's timed part where that is cheap, otherwise take them in a separate
+untimed pass over the preloaded lines and say so in `notes`.
+
+Checked in Rust: the burst size (16, 64, 256), timing every parse alone, and parsing each
+event only once after warming up on other events all give the same ns/event as a tight
+loop over preloaded frames, within run-to-run noise (~5%). Repeated rounds don't let the
+CPU learn the events: a workload is megabytes.
 
 Report the median round (headline), the minimum and the 90th percentile. Derived:
 `ns_per_event = median_ns / events`, `mb_per_s = bytes / (median_ns / 1e9) / 1e6`,
@@ -161,6 +181,7 @@ Every harness exposes the same flags (through its own launcher, e.g. `run.sh`):
 --warmup-ms N         default 1000
 --min-time-ms N       default 2000
 --min-rounds N        default 5
+--burst N             frames built (untimed) before each timed burst, default 64
 --quick               warmup 200, min-time 300, min-rounds 3 (smoke test)
 --list                print parser ids, one per line, and exit
 ```
@@ -175,7 +196,7 @@ Every harness exposes the same flags (through its own launcher, e.g. `run.sh`):
   "language": "Rust",
   "runtime": "rustc 1.97.0, -C target-cpu=native, release",
   "host": { "cpu": "…", "cores": 4, "os": "Linux 6.x" },
-  "settings": { "warmup_ms": 1000, "min_time_ms": 2000, "min_rounds": 5 },
+  "settings": { "warmup_ms": 1000, "min_time_ms": 2000, "min_rounds": 5, "burst": 64 },
   "corpus_fingerprint": "<manifest.fingerprint>",
   "results": [
     {
