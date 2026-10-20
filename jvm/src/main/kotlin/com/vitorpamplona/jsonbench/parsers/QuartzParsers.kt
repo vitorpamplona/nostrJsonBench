@@ -78,17 +78,20 @@ class QuartzKotlinx : StringInputParser() {
 class QuartzJacksonCacheShare : StringInputParser() {
     private val intern: (String) -> String = { it.intern() }
 
-    private val shareStrings: Method =
+    // Null on Quartz 1.19.0 and earlier: each parse then fails, which the harness records
+    // as this row's error (the child JVM must not die in the constructor).
+    private val shareStrings: Method? =
         try {
             QuartzEvent::class.java.getMethod("shareStrings", String::class.java, String::class.java, Function1::class.java)
         } catch (e: NoSuchMethodException) {
-            throw IllegalStateException("needs a Quartz with Event.shareStrings (newer than 1.19.0); run with QUARTZ_DIR=<amethyst checkout>", e)
+            null
         }
 
     private fun parseAndShare(
         input: String,
         sharedIdAndPubKey: Boolean,
     ): QuartzEvent {
+        val shareStrings = shareStrings ?: error("needs a Quartz with Event.shareStrings (newer than 1.19.0); run with QUARTZ_DIR=<amethyst checkout>")
         val e = JacksonMapper.fromJson(input)
         if (sharedIdAndPubKey) {
             shareStrings.invoke(e, e.id.intern(), e.pubKey.intern(), intern)
