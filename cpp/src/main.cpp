@@ -134,6 +134,20 @@ long long now_ns() {
   return std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch()).count();
 }
 
+// How allocs_per_event and retained_objects_per_event were counted for this row.
+std::string objects_note(const ParserInfo& p) {
+  std::string s =
+      "malloc blocks from the interposed allocator (operator new included): every block is one object, a "
+      "realloc that moves is one new allocation and one glibc grows in place is none; a std::string of up to "
+      "15 bytes is stored inline (SSO) and allocates nothing";
+  if (p.mode == "typed") s += "; retained objects include the kept Event node itself (new Event)";
+  if (p.id == "glaze-borrowed") s += "; retained objects include the kept exact-size copy of each frame";
+  if (p.library == "glaze" && p.mode != "dom")
+    s += "; glaze leaves a std::string whose raw JSON is 8-15 bytes (e.g. \"amethyst\", an escaped emoji) in a "
+         "heap buffer instead of SSO, +0.6-0.9 objects/event over the other typed rows";
+  return s;
+}
+
 ojson run_one(const ParserInfo& p, const ojson& wl, const Lines& lines, const Options& o) {
   const std::string wname = wl["name"];
   const uint64_t events = wl["events"];
@@ -151,6 +165,7 @@ ojson run_one(const ParserInfo& p, const ojson& wl, const Lines& lines, const Op
   row["workload"] = wname;
   row["events"] = events;
   row["bytes"] = bytes;
+  row["objects_note"] = objects_note(p);
 
   uint64_t errors = 0;
   std::string first_error;
@@ -194,6 +209,7 @@ ojson run_one(const ParserInfo& p, const ojson& wl, const Lines& lines, const Op
     row["gc_count"] = nullptr;
     row["gc_ms"] = nullptr;
     row["retained_bytes_per_event"] = nullptr;
+    row["retained_objects_per_event"] = nullptr;
   };
 
   // A parser that fails on some event cannot run a clean round; one with only a digest
@@ -249,9 +265,14 @@ ojson run_one(const ParserInfo& p, const ojson& wl, const Lines& lines, const Op
 
   // Retained heap: parse every event once more, keep every result, count the live bytes.
   row["retained_bytes_per_event"] = nullptr;
+  row["retained_objects_per_event"] = nullptr;
   try {
     std::unique_ptr<Kept> kept = runner->keep_all();
-    if (kept) row["retained_bytes_per_event"] = double(kept->live_after - kept->live_before) / double(events);
+    if (kept) {
+      row["retained_bytes_per_event"] = double(kept->live_after - kept->live_before) / double(events);
+      row["retained_objects_per_event"] =
+          double(kept->live_count_after - kept->live_count_before) / double(events);
+    }
   } catch (const std::exception& e) {
     if (row["error"].is_null()) row["error"] = std::string("retain: ") + e.what();
   }
@@ -401,11 +422,12 @@ int main(int argc, char** argv) {
       for (const ParserInfo* p : selected) {
         ojson row = run_one(*p, w, lines, o);
         std::fprintf(stderr,
-                     "  %-28s %-8s digest=%-5s %9s MB/s %10s ns/ev %9s B/ev %7s allocs/ev %9s retained B/ev%s%s\n",
+                     "  %-28s %-8s digest=%-5s %9s MB/s %10s ns/ev %9s B/ev %7s allocs/ev %9s retained B/ev %6s retained objs/ev%s%s\n",
                      p->id.c_str(), p->mode.c_str(), row["digest_ok"].get<bool>() ? "ok" : "FAIL",
                      fmt(row["mb_per_s"], 1).c_str(), fmt(row["ns_per_event"], 1).c_str(),
                      fmt(row["alloc_bytes_per_event"], 1).c_str(), fmt(row["allocs_per_event"], 2).c_str(),
                      fmt(row["retained_bytes_per_event"], 1).c_str(),
+                     fmt(row["retained_objects_per_event"], 2).c_str(),
                      row["error"].is_null() ? "" : "  error: ",
                      row["error"].is_null() ? "" : row["error"].get<std::string>().c_str());
         out["results"].push_back(std::move(row));

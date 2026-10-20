@@ -3,13 +3,17 @@
 // lookup order (and is linked with -rdynamic), this also sees libstdc++'s operator new,
 // aligned new, and every C library (yyjson, cJSON, json-c, Jansson, OpenSSL).
 //
-// Counting rule: every successful malloc/calloc/realloc/memalign-family call is one
-// allocation; bytes are the requested size (for realloc, the full new size).
+// Counting rule (objects created): every successful malloc/calloc/memalign-family call is one
+// allocation, and so is a realloc that moves the block (or realloc(NULL, n), a malloc); a
+// realloc that glibc grows or shrinks in place creates nothing. Bytes are the requested size,
+// for every successful realloc the full new size, moved or not (what a malloc + copy costs).
 //
 // Live bytes (for the retained-heap measurement): every block adds its malloc_usable_size()
 // when it is handed out and subtracts it when it is freed; realloc applies the difference.
 // That is the heap the block really occupies (requested size rounded up to glibc's chunk
 // granularity), not counting glibc's 8-byte chunk header.
+// Live blocks (retained objects): +1 per block handed out, -1 per free; a realloc keeps the
+// count (the new block replaces the old), except realloc(NULL, n) (+1) and realloc(p, 0) (-1).
 // The harness is single-threaded, so plain counters are enough.
 #define _GNU_SOURCE
 #include <errno.h>
@@ -26,12 +30,14 @@ extern void* __libc_memalign(size_t, size_t);
 uint64_t jb_alloc_count = 0;
 uint64_t jb_alloc_bytes = 0;
 int64_t jb_live_bytes = 0;
+int64_t jb_live_count = 0;
 
 static inline void* counted(void* p, size_t n) {
   if (p) {
     jb_alloc_count++;
     jb_alloc_bytes += n;
     jb_live_bytes += (int64_t)malloc_usable_size(p);
+    jb_live_count++;
   }
   return p;
 }
@@ -49,18 +55,23 @@ void* realloc(void* p, size_t n) {
   void* r = __libc_realloc(p, n);
   if (r) {
     jb_live_bytes += (int64_t)malloc_usable_size(r) - old;
+    if (!p) jb_live_count++;  // realloc(NULL, n) is malloc(n)
     if (n) {
-      jb_alloc_count++;
+      if (r != p) jb_alloc_count++;  // moved (or fresh): one new block
       jb_alloc_bytes += n;
     }
-  } else if (n == 0) {
+  } else if (n == 0 && p) {
     jb_live_bytes -= old;  // glibc's realloc(p, 0) frees p
+    jb_live_count--;
   }
   return r;
 }
 
 void free(void* p) {
-  if (p) jb_live_bytes -= (int64_t)malloc_usable_size(p);
+  if (p) {
+    jb_live_bytes -= (int64_t)malloc_usable_size(p);
+    jb_live_count--;
+  }
   __libc_free(p);
 }
 
