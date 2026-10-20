@@ -82,7 +82,9 @@ def main():
         for r in run["results"]:
             r = dict(r)
             r["harness"] = run["harness"]
-            r["language"] = run.get("language", run["harness"])
+            lang = run.get("language", run["harness"])
+            # Node, Bun and Deno share one language; name the runtime so their rows differ.
+            r["language"] = f"{lang} ({run['harness'].capitalize()})" if run["harness"] in ("node", "bun", "deno") else lang
             rows.append(r)
             if r["workload"] not in workloads:
                 workloads.append(r["workload"])
