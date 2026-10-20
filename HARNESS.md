@@ -125,6 +125,24 @@ buys: allocation per event measures garbage, retained heap measures what stays. 
 used heap between `System.gc()` calls; Go: `HeapAlloc` after `runtime.GC()`; Rust/C/C++:
 live bytes from the allocation counter. Null when not measured.
 
+**Objects created, kept and thrown away** (null when the runtime can't count exactly):
+
+- `allocs_per_event` (above) is the number of objects **created** by one parse: every heap
+  allocation (object, array, string, malloc block) during the measured rounds, divided by
+  rounds × events. Where the timed run can't count them, a harness may count them in a
+  separate untimed pass and say so in `objects_note` (the JVM counts through a bytecode
+  allocation agent, which sees every `new` before the JIT's escape analysis removes any).
+- `retained_objects_per_event`: objects still alive per event in the retained-heap pass
+  (every result kept, full collection first): the count counterpart of
+  `retained_bytes_per_event`. Rust/C/C++: live allocations from the counting allocator;
+  Go: `MemStats.HeapObjects`; JVM: live instances in a class histogram; JS: objects in a
+  heap snapshot (or the engine's own object count); Python: `sys.getallocatedblocks()`.
+- Garbage, the objects a parse leaves for the collector or `free`, is `allocs_per_event −
+  retained_objects_per_event`; the report computes it, harnesses don't emit it.
+- `objects_note` (string, optional): how the counts were taken when it isn't obvious.
+
+Exclude the container that holds the kept results from both retained numbers.
+
 Isolation: harnesses on JIT runtimes must run each parser in a **fresh process** so
 one parser's JIT profile and heap don't tax the next (the JVM harness forks itself per
 parser, JMH-style). Compiled harnesses may run everything in one process.
@@ -174,7 +192,9 @@ Every harness exposes the same flags (through its own launcher, e.g. `run.sh`):
       "ns_per_event": 1348.7, "mb_per_s": 670.2, "events_per_s": 741430,
       "alloc_bytes_per_event": 1840.2, "allocs_per_event": 14.0,
       "gc_count": null, "gc_ms": null,
-      "retained_bytes_per_event": null
+      "retained_bytes_per_event": null,
+      "retained_objects_per_event": null,
+      "objects_note": null
     }
   ]
 }
