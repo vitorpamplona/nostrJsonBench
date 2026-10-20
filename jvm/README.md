@@ -26,7 +26,10 @@ Extra JVM flags go through `JAVA_OPTS`.
 - **One JVM per parser.** The process you start only orchestrates: for each parser it
   forks a child with the same `java`, classpath and JVM flags (`-Xms2g -Xmx2g
   -XX:+UseG1GC --add-modules jdk.incubator.vector`). The child verifies and times that
-  parser on every selected workload and hands its rows back through a temp file. A
+  parser on every selected workload and hands its rows back through a temp file.
+- **Three timed JVMs per parser** (`--forks N`, 1 with `--quick`). The JIT sometimes
+  compiles a parser into a faster or slower shape in one JVM than in the next, so each row
+  is the fork with the median ns/event, and `fork_ns_per_event` lists all of them. A
   second child, started only after the first has exited, counts that parser's
   allocations (see "Objects created" below), so the agent never runs where timing does. The
   harness's own manifest/result JSON goes through a tiny hand-written reader/writer

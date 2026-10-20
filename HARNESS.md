@@ -169,6 +169,12 @@ Isolation: harnesses on JIT runtimes must run each parser in a **fresh process**
 one parser's JIT profile and heap don't tax the next (the JVM harness forks itself per
 parser, JMH-style). Compiled harnesses may run everything in one process.
 
+A JIT can settle on a fast or a slow compilation of the same parser from one process to
+the next (JVM `kotlinx-typed`: 1,197 ns/event in one fork of five, ~1,760 in the other
+four). A JIT harness may time each parser in several fresh processes and report, per
+workload, the process with the median ns/event; it records `forks` and every process's
+`fork_ns_per_event` in the row. The JVM harness runs 3 (`--forks`, 1 with `--quick`).
+
 ## Command line
 
 Every harness exposes the same flags (through its own launcher, e.g. `run.sh`):
