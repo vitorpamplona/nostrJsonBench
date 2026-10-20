@@ -1,0 +1,48 @@
+# Versions of everything the JVM harness benchmarks. The harness writes the versions it
+# reports into each result row from this file (see build.gradle.kts), so keep them here.
+[versions]
+kotlin = "2.4.20"
+# Amethyst's Nostr library: its JacksonMapper / KotlinSerializationMapper are the
+# production parsers (quartz-jackson, quartz-kotlinx) everything else is compared to.
+quartz = "1.19.0"
+# Jackson and kotlinx.serialization at the versions Quartz 1.19.0 itself uses.
+jackson = "2.22.3"
+kotlinxSerialization = "1.11.0"
+secp256k1 = "0.24.0"
+gson = "2.14.0"
+moshi = "1.15.2"
+fastjson2 = "2.0.66"
+dslJson = "2.0.2"
+# 0.4.0 needs Java 24.
+simdjson = "0.3.0"
+orgJson = "20260814"
+jsoniter = "0.9.23"
+parsson = "1.1.9"
+minimalJson = "0.9.5"
+jsonSmart = "2.6.0"
+jsoniterScala = "2.41.6"
+scala3 = "3.3.8"
+
+[libraries]
+quartz = { group = "com.vitorpamplona.quartz", name = "quartz", version.ref = "quartz" }
+jackson-core = { group = "com.fasterxml.jackson.core", name = "jackson-core", version.ref = "jackson" }
+jackson-databind = { group = "com.fasterxml.jackson.core", name = "jackson-databind", version.ref = "jackson" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+secp256k1-kmp-jni-jvm = { group = "fr.acinq.secp256k1", name = "secp256k1-kmp-jni-jvm", version.ref = "secp256k1" }
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+moshi = { group = "com.squareup.moshi", name = "moshi", version.ref = "moshi" }
+fastjson2 = { group = "com.alibaba.fastjson2", name = "fastjson2", version.ref = "fastjson2" }
+dsljson = { group = "com.dslplatform", name = "dsl-json", version.ref = "dslJson" }
+simdjson = { group = "org.simdjson", name = "simdjson-java", version.ref = "simdjson" }
+orgjson = { group = "org.json", name = "json", version.ref = "orgJson" }
+jsoniter = { group = "com.jsoniter", name = "jsoniter", version.ref = "jsoniter" }
+parsson = { group = "org.eclipse.parsson", name = "parsson", version.ref = "parsson" }
+minimaljson = { group = "com.eclipsesource.minimal-json", name = "minimal-json", version.ref = "minimalJson" }
+jsonsmart = { group = "net.minidev", name = "json-smart", version.ref = "jsonSmart" }
+jsoniter-scala-core = { group = "com.github.plokhotnyuk.jsoniter-scala", name = "jsoniter-scala-core_3", version.ref = "jsoniterScala" }
+jsoniter-scala-macros = { group = "com.github.plokhotnyuk.jsoniter-scala", name = "jsoniter-scala-macros_3", version.ref = "jsoniterScala" }
+scala3-library = { group = "org.scala-lang", name = "scala3-library_3", version.ref = "scala3" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
