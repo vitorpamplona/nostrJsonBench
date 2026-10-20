@@ -21,8 +21,8 @@ How it measures:
   JIT cache. Inside the child, workloads run one after another.
 - **Input.** In Go a WebSocket text frame arrives as a `[]byte` (gorilla/websocket
   `ReadMessage`, coder/websocket `Read`), so every parser starts from a `[]byte` line:
-  a sub-slice of the workload file (capacity capped at the line end), loaded before
-  timing. Every copy or conversion on top of it runs inside the timed loop. The `input`
+  built fresh before each burst (see Arrival). Every copy or conversion on top of it
+  runs inside the timed loop. The `input`
   column names it: `bytes` (the library reads the frame as is), `bytes-copy` (the
   library copies it into its own scratch buffer: goccy's NUL-terminated context buffer,
   fastjson's reused `Parser` buffer) or `bytes→string` (a `string(frame)` copy: sonic's
@@ -39,12 +39,21 @@ How it measures:
 - **Typed results.** Each typed parse allocates a fresh `*Event` that the caller could
   keep: `{ID, PubKey string; CreatedAt int64; Kind int; Tags [][]string; Content, Sig string}`.
   The Nostr libraries decode into their own `Event` types.
-- **Memory and GC.** `runtime.GC()`, then `runtime.ReadMemStats` before and after the
-  measured rounds. `alloc_bytes_per_event`/`allocs_per_event` come from
-  `TotalAlloc`/`Mallocs`, `gc_count` from `NumGC` and `gc_ms` from `PauseTotalNs`
-  (stop-the-world pauses only). An extra field, `gc_cpu_ms`, is the GC's estimated CPU
-  time (`/cpu/classes/gc/total:cpu-seconds` in `runtime/metrics`). That includes the
-  concurrent mark work that `gc_ms` leaves out.
+- **Arrival.** A round walks the workload in bursts of `--burst` frames (default 64).
+  For each burst, untimed, every frame is built as a new `[]byte` copied from its line,
+  the way `ReadMessage` hands a frame to the app. Then the burst's parses are timed, one
+  per frame, and the frames are dropped as garbage. A round's time is the sum of its
+  bursts. Warm-up runs the same burst rounds. Verify, the digest and the retained pass
+  use the preloaded lines.
+- **Memory and GC.** `runtime.ReadMemStats` stops the world, so it is not read per
+  burst. Every memory and GC number comes from a separate untimed pass after the
+  measured rounds: `runtime.GC()`, then as many tight rounds over the preloaded lines as
+  were measured, with no frame copies. So they cover the parses only.
+  `alloc_bytes_per_event`/`allocs_per_event` come from `TotalAlloc`/`Mallocs`,
+  `gc_count` from `NumGC` and `gc_ms` from `PauseTotalNs` (stop-the-world pauses only).
+  An extra field, `gc_cpu_ms`, is the GC's estimated CPU time in the same pass
+  (`/cpu/classes/gc/total:cpu-seconds` in `runtime/metrics`). That includes the
+  concurrent mark work that `gc_ms` leaves out. Each row's `notes` says this.
 - **Runtime.** The default `GOGC` (100), with no `GOMEMLIMIT` and `GOMAXPROCS` set to
   the core count. The environment can override all three, and the `runtime` string
   records them. Builds use the default `GOAMD64=v1`.
@@ -63,7 +72,7 @@ How it measures:
   `ParsedJson` that the next parse overwrites, so there is nothing a client could keep.
   Slice capacity counts too: segmentio starts every slice at capacity 10, so each tag
   carries room for 10 strings.
-- **Objects.** `allocs_per_event` (`Mallocs` over the measured rounds) is the objects one
+- **Objects.** `allocs_per_event` (`Mallocs` over the memory pass) is the objects one
   parse creates. `retained_objects_per_event` comes from the same keep passes as retained
   bytes: `MemStats.HeapObjects` after the second `runtime.GC()` minus before, per event,
   median of the same 3 passes, null wherever retained bytes is null. The results slice
