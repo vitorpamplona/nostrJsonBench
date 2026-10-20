@@ -26,11 +26,8 @@ Results summary: the [root README](../../../README.md#results). Every table:
 | `quartz-loop`: without databind's `readValue` | 1,655 | 1,705 |
 | `quartz-loop-plain`: without `EventFactory` | 1,588 | 1,697 |
 | `quartz-loop-intern`: with Quartz 1.19.0's parse-time `String.intern()` | 3,762 | 1,030 |
-| `quartz-jackson-cacheshare`: parse + LocalCache's sharing, every event | 3,238 | 1,030 |
 
-- Interning costs 0.6–2.1 µs per event on small kinds and 4–6 µs on zaps and lists, and
-  saves 6–46% of a kept event's memory depending on kind (35% on `all`). Since amethyst#4583 only kept events pay it;
-  through Amethyst's own `EventCache` on the full dump with duplicates, a received event
-  went from 15.4 to 12.2 µs with the same retained heap (87.9 MB, 102.5 MB without
-  interning).
+- Parse-time `String.intern()`, which Quartz 1.19.0 did, costs 0.6–2.1 µs per event on
+  small kinds and 4–6 µs on zaps and lists, and shrinks the parsed events by 6–46%
+  depending on kind (35% on `all`).
 - `EventFactory` costs ~70–130 ns per event (~400 ns on lists); `readValue` is within noise.

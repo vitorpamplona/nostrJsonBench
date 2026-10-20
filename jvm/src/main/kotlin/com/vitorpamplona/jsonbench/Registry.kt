@@ -43,7 +43,6 @@ import com.vitorpamplona.jsonbench.parsers.MoshiStreaming
 import com.vitorpamplona.jsonbench.parsers.OrgJsonDom
 import com.vitorpamplona.jsonbench.parsers.ParssonStreaming
 import com.vitorpamplona.jsonbench.parsers.QuartzJackson
-import com.vitorpamplona.jsonbench.parsers.QuartzJacksonCacheShare
 import com.vitorpamplona.jsonbench.parsers.QuartzKotlinx
 import com.vitorpamplona.jsonbench.parsers.QuartzLoop
 import com.vitorpamplona.jsonbench.parsers.QuartzLoopIntern
@@ -106,20 +105,8 @@ val PARSERS: List<ParserSpec> =
             "string",
             "Amethyst's production path: JacksonMapper.fromJson(String) -> Quartz EventDeserializer -> " +
                 "EventFactory builds the kind's Event subclass. The baseline. Quartz 1.19.0 and earlier also " +
-                "interned id, pubkey and tag values here; later versions do it at LocalCache entry.",
+                "interned id, pubkey and tag values here.",
         ) { QuartzJackson() },
-        ParserSpec(
-            "quartz-jackson-cacheshare",
-            "Quartz JacksonMapper + Event.shareStrings",
-            "quartz",
-            "Apache-2.0 AND MIT",
-            "typed",
-            "string",
-            "quartz-jackson plus what LocalCache does to an event it keeps (Event.shareStrings: id and " +
-                "pubkey shared with the cache keys, tag values interned), for every event: the worst case " +
-                "where every event is new and kept. Needs a Quartz newer than 1.19.0.",
-            variant = true,
-        ) { QuartzJacksonCacheShare() },
         ParserSpec(
             "quartz-kotlinx",
             "Quartz KotlinSerializationMapper (kotlinx-serialization-json)",
