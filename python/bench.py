@@ -271,14 +271,58 @@ def fresh_frames(raw):
     return [b.decode("utf-8") for b in raw]
 
 
-def measure_retained(parse, raw):
-    """tracemalloc'd bytes still held after keeping every parse result, per event.
+def count_result_objects(roots):
+    """Python objects in the kept result graph that the keep pass created (tracemalloc on).
 
-    Frames are fresh strs created before tracing starts and dropped one by one, so the
-    frame (and any UTF-8 cache a parser hangs on it) is not counted, as in a client that
-    drops the frame once parsed. The result list is allocated before tracing starts, so
-    the container is excluded. Shared objects (small ints, interned or cached keys)
-    already alive before the pass are free, as they are in a client.
+    Walks dicts (keys and values), lists, tuples and msgspec Structs, de-duplicating by
+    id(); an object counts only if tracemalloc saw it being allocated, so objects that
+    existed before the pass (small ints, interned or statically allocated strs, keys a
+    parser cached during earlier rounds) are free, as they are in retained bytes.
+    """
+    traced = tracemalloc.get_object_traceback
+    seen = set()
+    stack = list(roots)
+    n = 0
+    while stack:
+        o = stack.pop()
+        i = id(o)
+        if i in seen:
+            continue
+        seen.add(i)
+        if traced(o) is None:
+            continue
+        n += 1
+        t = type(o)
+        if t is dict:
+            for k, v in o.items():
+                stack.append(k)
+                stack.append(v)
+        elif t is list or t is tuple:
+            stack.extend(o)
+        else:
+            fields = getattr(t, "__struct_fields__", None)
+            if fields is not None:
+                stack.extend(getattr(o, f) for f in fields)
+    return n
+
+
+def measure_retained(parse, raw):
+    """What the kept parse results hold, per event: (bytes, heap blocks, Python objects).
+
+    Bytes and blocks are tracemalloc's live traces after keeping every result; objects
+    come from walking the kept results (count_result_objects). Frames are fresh strs
+    created before tracing starts and dropped one by one, so the frame (and any UTF-8
+    cache a parser hangs on it) is not counted, as in a client that drops the frame once
+    parsed. The result list is allocated before tracing starts, so the container is
+    excluded. Shared objects (small ints, interned or cached keys) already alive before
+    the pass are free, as they are in a client.
+
+    Blocks are counted from tracemalloc rather than as a sys.getallocatedblocks() delta:
+    that counter is live blocks of every size (pymalloc and the large ones it hands to
+    malloc), but it also drops by one for every frame str freed in the pass (two when the
+    parser cached the frame's UTF-8), so the delta comes out about one block per event
+    short. A trace is only removed for a block allocated while tracing, so the dropped
+    frames don't show; tracemalloc's own snapshot allocations are filtered out.
     """
     n = len(raw)
     frames = fresh_frames(raw)
@@ -291,10 +335,27 @@ def measure_retained(parse, raw):
             frames[i] = None
         gc.collect()
         current, _peak = tracemalloc.get_traced_memory()
+        snap = tracemalloc.take_snapshot().filter_traces([tracemalloc.Filter(False, tracemalloc.__file__)])
+        blocks = len(snap.traces)
+        del snap
+        objects = count_result_objects(keep)
     finally:
         tracemalloc.stop()
     del keep
-    return current / n
+    return current / n, blocks / n, objects / n
+
+
+OBJECTS_NOTE = (
+    "retained_objects_per_event = live heap blocks the keep pass left (tracemalloc traces after keeping every "
+    "result and gc.collect(), any size and allocator domain, frames and the result list excluded), divided by "
+    "events: one per allocation, like the counting allocators, so a list is 2 (object + item array, an empty list "
+    "1), a dict 2 (object + keys table), a str, int or msgspec Struct 1; small ints, interned strs, 1-char "
+    "latin-1 strs and keys a parser cached in earlier rounds already exist and are free. Python objects in the "
+    "kept result graph (id-deduplicated walk, same exclusions): {objects:.2f}/event. allocs_per_event is null: "
+    "CPython has no cumulative allocation counter (sys.getallocatedblocks() and tracemalloc only see live blocks, "
+    "so a parse's freed temporaries never show), and an allocator hook would still miss objects reused from "
+    "CPython's dict/list/tuple/float freelists."
+)
 
 
 class GcTimer:
@@ -343,7 +404,8 @@ def run_child(opts, workloads):
         row = dict(row_base, workload=w["name"], events=w["events"], bytes=w["bytes"], digest_ok=False, errors=0,
                    error=None, rounds=0, median_ns=None, min_ns=None, p90_ns=None, ns_per_event=None,
                    mb_per_s=None, events_per_s=None, alloc_bytes_per_event=None, allocs_per_event=None,
-                   gc_count=None, gc_ms=None, retained_bytes_per_event=None)
+                   gc_count=None, gc_ms=None, retained_bytes_per_event=None, retained_objects_per_event=None,
+                   objects_note=None)
         rows.append(row)
         if load_error:
             row["error"] = load_error
@@ -415,11 +477,18 @@ def run_child(opts, workloads):
                    events_per_s=w["events"] / (med / 1e9), gc_count=gct.count, gc_ms=gct.ns / 1e6)
         # retained heap (untimed), not for baselines or views into a reused parser document
         if p["mode"] != "baseline" and p.get("retained", True):
-            row["retained_bytes_per_event"] = measure_retained(parse, raw)
+            ret_bytes, ret_blocks, ret_objects = measure_retained(parse, raw)
+            row.update(retained_bytes_per_event=ret_bytes, retained_objects_per_event=ret_blocks,
+                       objects_note=OBJECTS_NOTE.format(objects=ret_objects))
+        else:
+            row["objects_note"] = ("retained counts not measured (baseline, or a view into a reused parser document); "
+                                   "allocs_per_event is null: CPython has no cumulative allocation counter")
         ret = row["retained_bytes_per_event"]
+        retn = row["retained_objects_per_event"]
         print(f"  python {p['id']:<22} {w['name']:<10} {row['mb_per_s']:8.1f} MB/s "
               f"{row['ns_per_event']:7.0f} ns/ev  rounds={n} gc={gct.count}"
-              f"{'' if ret is None else f' retained={ret:.0f} B/ev'} sink={sink}", file=sys.stderr)
+              f"{'' if ret is None else f' retained={ret:.0f} B/ev {retn:.2f} blocks/ev'} sink={sink}",
+              file=sys.stderr)
     print("@@ROWS " + json.dumps(rows))
     print(f"  (sink {sink_all})", file=sys.stderr)
 
@@ -511,7 +580,8 @@ def main(argv):
                                 rounds=0, median_ns=None, min_ns=None, p90_ns=None, ns_per_event=None,
                                 mb_per_s=None, events_per_s=None, alloc_bytes_per_event=None,
                                 allocs_per_event=None, gc_count=None, gc_ms=None,
-                                retained_bytes_per_event=None))
+                                retained_bytes_per_event=None, retained_objects_per_event=None,
+                                objects_note=None))
 
     doc = {
         "harness": "python",

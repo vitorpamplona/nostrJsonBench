@@ -136,7 +136,9 @@ live bytes from the allocation counter. Null when not measured.
   (every result kept, full collection first): the count counterpart of
   `retained_bytes_per_event`. Rust/C/C++: live allocations from the counting allocator;
   Go: `MemStats.HeapObjects`; JVM: live instances in a class histogram; JS: objects in a
-  heap snapshot (or the engine's own object count); Python: `sys.getallocatedblocks()`.
+  heap snapshot (or the engine's own object count); Python: live tracemalloc traces after
+  the keep pass (a `sys.getallocatedblocks()` delta also subtracts the frames freed
+  during the pass).
 - Garbage, the objects a parse leaves for the collector or `free`, is `allocs_per_event −
   retained_objects_per_event`; the report computes it, harnesses don't emit it.
 - `objects_note` (string, optional): how the counts were taken when it isn't obvious.

@@ -82,8 +82,11 @@ own sources.
   soon as the loop drops them, so the gen-0 allocation counter never reaches its
   threshold.
 - `alloc_bytes_per_event`, `allocs_per_event`: null. CPython has no cumulative
-  allocation counter, and `tracemalloc` slows the parse too much to leave on during
-  timing.
+  allocation counter: `sys.getallocatedblocks()` and `tracemalloc` only see live blocks,
+  so the temporaries a parse frees never show, and `tracemalloc` slows the parse too much
+  to leave on during timing anyway. A C allocator hook (`PyMem_SetAllocator`) would still
+  miss the objects CPython reuses from its dict/list/tuple/float freelists, so it would
+  not be an exact object count either.
 - `retained_bytes_per_event`: after timing, one more pass under `tracemalloc` parses every
   event from a fresh `str` and keeps all results in a list allocated before tracing
   starts (so the container is not counted); the value is `get_traced_memory()` current
@@ -97,3 +100,24 @@ own sources.
   64-character hex ids and pubkeys. Null for the baseline and for the
   two `dom` rows (`pysimdjson`, `cysimdjson`): their results are views into a reused
   parser document, which cannot be kept.
+- `retained_objects_per_event`: the live heap blocks the same keep pass leaves, counted
+  from the same `tracemalloc` state (the number of traces after the pass, the snapshot's
+  own allocations filtered out), divided by the event count. That is one per allocation,
+  like the counting allocators of the compiled harnesses: a `list` is 2 (object + item
+  array; an empty one 1), a `dict` 2 (object + keys table), a `str`, `int` or msgspec
+  `Struct` 1. It is not a `sys.getallocatedblocks()` delta: that counter does see blocks
+  of every size (the ones over 512 bytes that pymalloc hands to `malloc` included,
+  checked), but it also drops for every frame `str` freed during the pass (and its UTF-8
+  cache), so the delta comes out about one block per event short. `objects_note` also gives
+  the number of Python objects in the kept result graph (a walk of the results with
+  `id()` de-duplication, counting only objects `tracemalloc` saw allocated in the pass).
+  On `notes` that is 25.5 for `json-stdlib`: 1 dict, 1 int (`created_at`; `kind` is a
+  cached small int), 5.7 lists (`tags` + 4.7 tags), and 17.8 strs = 4 (`id`, `pubkey`,
+  `content`, `sig`) + **7 keys** + 6.8 tag values. The keys are new on every event: the
+  stdlib scanner only shares keys within one document (its memo dict is cleared per call)
+  and does not intern them; ujson, rapidjson, simplejson, pysimdjson and yyjson do the
+  same. orjson and msgspec cache keys across calls but build new one-character strs
+  (`"e"`, `"p"`) where the stdlib returns CPython's cached latin-1 singletons, 4.4 per
+  event here, so they land at 22.9; yyjson does both (fresh keys and fresh one-character
+  strs, 29.9); jiter's string cache brings it to 14.5. The block count is the object count
+  plus 6.65 on `notes` (a keys table per dict, an item array per non-empty list).
