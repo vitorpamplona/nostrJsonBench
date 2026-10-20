@@ -298,7 +298,6 @@ Other ways the same library was run (another entry point or input path) and rows
 | JavaScript (Bun) | Bun.JSONL.parse | typed | `bun-jsonl-string` | `bun-jsonl-bytes` | string→bytes | 1,523 | 0.77× |
 | JavaScript (Deno) | Buffer.toString + JSON.parse | typed | – | `json-parse-buffer` | bytes | 1,491 | – |
 | JavaScript (Node) | Buffer.toString + JSON.parse | typed | – | `json-parse-buffer` | bytes | 1,430 | – |
-| Kotlin/Java (JVM) | Quartz JacksonMapper + Event.shareStrings | typed | – | `quartz-jackson-cacheshare` | string | 3,841 | – |
 | Kotlin/Java (JVM) | dsl-json | typed | `dsljson-reflect` | `dsljson-bytes` | string→bytes | 1,377 | 0.98× |
 | Kotlin/Java (JVM) | fastjson2 | typed | `fastjson2-reflect-string` | `fastjson2-reflect-bytes` | string→bytes | 1,087 | 0.83× |
 | Kotlin/Java (JVM) | fastjson2 | typed | `fastjson2-reflect-string` | `fastjson2-reader` | string→bytes | 1,096 | 0.83× |
@@ -317,18 +316,18 @@ Other ways the same library was run (another entry point or input path) and rows
 
 ## Interning: parse cost vs. memory kept (JVM)
 
-`quartz-jackson` is the production parse (databind → `EventDeserializer` → `EventFactory`). `quartz-loop` is the same loop on a bare jackson-core parser and `quartz-loop-plain` also drops `EventFactory`. `quartz-loop-intern` adds the `String.intern()` on id, pubkey and every tag value that Quartz 1.19.0 and earlier did while parsing; `quartz-jackson-cacheshare` adds what LocalCache now does instead to an event it keeps (`Event.shareStrings`), for every event, i.e. the worst case where every event is new and kept. *Retained* is the heap still held after parsing the whole workload and keeping every event.
+`quartz-jackson` is the production parse (databind → `EventDeserializer` → `EventFactory`). `quartz-loop` is the same loop on a bare jackson-core parser and `quartz-loop-plain` also drops `EventFactory`. `quartz-loop-intern` adds the `String.intern()` on id, pubkey and every tag value that Quartz 1.19.0 and earlier did while parsing. *Retained* is the heap still held after parsing the whole workload and keeping every event.
 
-| workload | quartz-jackson ns/ev | + cache share ns/ev | loop ns/ev | loop + intern ns/ev | plain ns/ev | retained B/ev (no sharing) | retained B/ev (interned) | interning saves |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| all | 1,620 | 3,841 | 2,259 | 4,826 | 1,967 | 1,376 | 900 | 34.6% |
-| notes | 1,689 | 3,238 | 1,655 | 3,762 | 1,588 | 1,705 | 1,030 | 39.6% |
-| reactions | 1,065 | 1,853 | 1,004 | 2,464 | 910 | 1,049 | 572 | 45.5% |
-| dms | 973 | 1,279 | 924 | 1,784 | 839 | 922 | 641 | 30.5% |
-| giftwraps | 1,742 | 2,058 | 1,698 | 2,549 | 1,615 | 1,977 | 1,804 | 8.8% |
-| metadata | 1,641 | 1,924 | 1,676 | 2,234 | 1,579 | 1,232 | 1,153 | 6.4% |
-| zaps | 3,409 | 7,255 | 3,493 | 7,378 | 3,361 | 2,849 | 2,231 | 21.7% |
-| lists | 9,901 | 15,712 | 10,078 | 15,719 | 9,665 | 11,350 | 8,814 | 22.3% |
+| workload | quartz-jackson ns/ev | loop ns/ev | loop + intern ns/ev | plain ns/ev | retained B/ev (no sharing) | retained B/ev (interned) | interning saves |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| all | 1,620 | 2,259 | 4,826 | 1,967 | 1,376 | 900 | 34.6% |
+| notes | 1,689 | 1,655 | 3,762 | 1,588 | 1,705 | 1,030 | 39.6% |
+| reactions | 1,065 | 1,004 | 2,464 | 910 | 1,049 | 572 | 45.5% |
+| dms | 973 | 924 | 1,784 | 839 | 922 | 641 | 30.5% |
+| giftwraps | 1,742 | 1,698 | 2,549 | 1,615 | 1,977 | 1,804 | 8.8% |
+| metadata | 1,641 | 1,676 | 2,234 | 1,579 | 1,232 | 1,153 | 6.4% |
+| zaps | 3,409 | 3,493 | 7,378 | 3,361 | 2,849 | 2,231 | 21.7% |
+| lists | 9,901 | 10,078 | 15,719 | 9,665 | 11,350 | 8,814 | 22.3% |
 
 ## Failed verification (excluded from rankings)
 
@@ -440,7 +439,6 @@ Other ways the same library was run (another entry point or input path) and rows
 | Kotlin/Java (JVM) | Eclipse Parsson (Jakarta JSON-P) | 1.1.9 | EPL-2.0 OR GPL-2.0-only WITH Classpath-exception-2.0 |
 | Kotlin/Java (JVM) | JDK | 21.0.12.1+1-1-24.04.4-Ubuntu | GPL-2.0-only WITH Classpath-exception-2.0 |
 | Kotlin/Java (JVM) | Quartz JacksonMapper (jackson-databind + EventDeserializer) | local amethyst@df1faea1 | Apache-2.0 AND MIT |
-| Kotlin/Java (JVM) | Quartz JacksonMapper + Event.shareStrings | local amethyst@df1faea1 | Apache-2.0 AND MIT |
 | Kotlin/Java (JVM) | Quartz KotlinSerializationMapper (kotlinx-serialization-json) | local amethyst@df1faea1 | Apache-2.0 AND MIT |
 | Kotlin/Java (JVM) | dsl-json | 2.0.2 | BSD-3-Clause |
 | Kotlin/Java (JVM) | fastjson2 | 2.0.66 | Apache-2.0 |

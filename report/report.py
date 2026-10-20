@@ -241,7 +241,7 @@ def main():
     # and what moving it from the parser to cache entry (Amethyst #4583) changed.
     trade = {}
     for r in ok:
-        if r["harness"] == "jvm" and r["parser"] in ("quartz-jackson", "quartz-jackson-cacheshare", "quartz-loop", "quartz-loop-intern", "quartz-loop-plain"):
+        if r["harness"] == "jvm" and r["parser"] in ("quartz-jackson", "quartz-loop", "quartz-loop-intern", "quartz-loop-plain"):
             trade.setdefault(r["workload"], {})[r["parser"]] = r
     if any("quartz-loop" in v and "quartz-loop-intern" in v for v in trade.values()):
         L.append("## Interning: parse cost vs. memory kept (JVM)\n")
@@ -249,13 +249,11 @@ def main():
             "`quartz-jackson` is the production parse (databind → `EventDeserializer` → `EventFactory`). "
             "`quartz-loop` is the same loop on a bare jackson-core parser and `quartz-loop-plain` also drops "
             "`EventFactory`. `quartz-loop-intern` adds the `String.intern()` on id, pubkey and every tag value "
-            "that Quartz 1.19.0 and earlier did while parsing; `quartz-jackson-cacheshare` adds what LocalCache "
-            "now does instead to an event it keeps (`Event.shareStrings`), for every event, i.e. the worst case "
-            "where every event is new and kept. *Retained* is the heap still held after parsing the whole "
+            "that Quartz 1.19.0 and earlier did while parsing. *Retained* is the heap still held after parsing the whole "
             "workload and keeping every event.\n"
         )
-        L.append("| workload | quartz-jackson ns/ev | + cache share ns/ev | loop ns/ev | loop + intern ns/ev | plain ns/ev | retained B/ev (no sharing) | retained B/ev (interned) | interning saves |")
-        L.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|")
+        L.append("| workload | quartz-jackson ns/ev | loop ns/ev | loop + intern ns/ev | plain ns/ev | retained B/ev (no sharing) | retained B/ev (interned) | interning saves |")
+        L.append("|---|---:|---:|---:|---:|---:|---:|---:|")
 
         def nspe(r):
             return r["median_ns"] / r["events"] if r else None
@@ -268,7 +266,7 @@ def main():
             ra, rb = a.get("retained_bytes_per_event"), b.get("retained_bytes_per_event")
             saves = rb - ra if ra is not None and rb is not None else None
             L.append(
-                f"| {w} | {fmt(nspe(t.get('quartz-jackson')))} | {fmt(nspe(t.get('quartz-jackson-cacheshare')))} "
+                f"| {w} | {fmt(nspe(t.get('quartz-jackson')))} "
                 f"| {fmt(nspe(b))} | {fmt(nspe(a))} | {fmt(nspe(t.get('quartz-loop-plain')))} "
                 f"| {fmt(rb)} | {fmt(ra)} | {fmt(100 * saves / rb, 1) + '%' if saves is not None and rb else '–'} |"
             )

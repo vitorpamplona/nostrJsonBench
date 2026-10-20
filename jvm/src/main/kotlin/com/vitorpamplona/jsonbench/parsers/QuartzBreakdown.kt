@@ -111,7 +111,7 @@ class QuartzEventLoop(
 
 /**
  * Quartz's EventDeserializer loop as it ships after Amethyst #4583 (EventFactory, no
- * String.intern(); interning moved to LocalCache entry), minus jackson-databind's readValue.
+ * String.intern()), minus jackson-databind's readValue.
  */
 class QuartzLoop : StringInputParser() {
     private val loop = QuartzEventLoop(intern = false, factory = true)

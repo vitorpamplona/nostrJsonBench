@@ -53,7 +53,6 @@ checked against each artifact's published POM.
 | id | library | version | license | mode | input |
 |---|---|---|---|---|---|
 | `quartz-jackson` | Quartz `JacksonMapper` (jackson-databind + `EventDeserializer` + `EventFactory`; Quartz ≤ 1.19.0 also interns here) | Quartz | Apache-2.0 (Quartz: MIT) | typed | string |
-| `quartz-jackson-cacheshare` | `quartz-jackson` + `Event.shareStrings`, what Amethyst's LocalCache does to an event it keeps (needs Quartz > 1.19.0) | Quartz | Apache-2.0 (Quartz: MIT) | typed | string |
 | `quartz-loop` / `quartz-loop-intern` / `quartz-loop-plain` | breakdown of `quartz-jackson`: its deserializer loop on bare jackson-core (no databind), then with the parse-time `String.intern()` of Quartz ≤ 1.19.0, then with a plain `Event` instead of `EventFactory` | 2.22.3 | Apache-2.0 (Quartz: MIT) | typed | string |
 | `quartz-kotlinx` | Quartz `KotlinSerializationMapper` (the iOS/native path) | Quartz | Apache-2.0 (Quartz: MIT) | typed | string |
 | `jackson-streaming-bytes` / `-string` | jackson-core `JsonFactory`, hand loop | 2.22.3 | Apache-2.0 | typed | bytes / string |
