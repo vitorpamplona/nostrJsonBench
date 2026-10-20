@@ -324,7 +324,7 @@ object Parent {
         val vmName = System.getProperty("java.vm.name")
         val runtimeString =
             "${System.getProperty("java.vm.vendor")} $vmName ${System.getProperty("java.runtime.version")}, " +
-                "GC $gc, ${shownArgs.joinToString(" ")}, one JVM per parser"
+                "GC $gc, ${shownArgs.joinToString(" ")}, one JVM per parser, Quartz ${Versions["quartz"]}"
 
         System.err.println("jsonbench (jvm): ${specs.size} parsers x ${workloads.size} workloads; $runtimeString")
 

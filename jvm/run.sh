@@ -15,7 +15,12 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 
-(cd "$HERE" && ./gradlew -q installDist)
+# QUARTZ_DIR=<amethyst checkout> benchmarks that checkout's Quartz instead of the release.
+QUARTZ_ARGS=()
+if [[ -n "${QUARTZ_DIR:-}" ]]; then
+    QUARTZ_ARGS=("-PquartzDir=$(cd "$QUARTZ_DIR" && pwd)")
+fi
+(cd "$HERE" && ./gradlew -q installDist "${QUARTZ_ARGS[@]+"${QUARTZ_ARGS[@]}"}")
 
 # Defaults are absolute so the launcher works from any directory; flags given on the
 # command line come later and win.

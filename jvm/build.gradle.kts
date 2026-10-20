@@ -37,6 +37,20 @@ kotlin {
     }
 }
 
+val quartzUnderTest: String =
+    providers.gradleProperty("quartzDir").orNull?.let { dir ->
+        val commit =
+            providers
+                .exec {
+                    commandLine("git", "-C", dir, "rev-parse", "--short", "HEAD")
+                    isIgnoreExitValue = true
+                }.standardOutput.asText
+                .get()
+                .trim()
+        val name = File(dir).canonicalFile.name
+        "local $name@${commit.ifEmpty { "unknown" }}"
+    } ?: libs.versions.quartz.get()
+
 // Library versions the harness reports in every result row, taken from the same
 // catalog entries the dependencies below resolve.
 val generatedResources = layout.buildDirectory.dir("generated/jsonbench-resources")
@@ -55,7 +69,9 @@ val writeLibraryVersions by tasks.registering(WriteProperties::class) {
     property("minimal-json", libs.versions.minimalJson.get())
     property("json-smart", libs.versions.jsonSmart.get())
     property("jsoniter-scala", libs.versions.jsoniterScala.get())
-    property("quartz", libs.versions.quartz.get())
+    // The Quartz under test: the release from the catalog, or the commit of a local
+    // Amethyst checkout when built with -PquartzDir (see settings.gradle.kts).
+    property("quartz", quartzUnderTest)
 }
 sourceSets.main {
     resources.srcDir(writeLibraryVersions.map { generatedResources.get() })

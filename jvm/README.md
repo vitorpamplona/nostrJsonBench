@@ -42,15 +42,20 @@ Extra JVM flags go through `JAVA_OPTS`.
 ## Parsers
 
 Versions come from `jvm/gradle/libs.versions.toml`. Quartz is Amethyst's Nostr library,
-pulled from Maven Central (`com.vitorpamplona.quartz:quartz`); Jackson and
+pulled from Maven Central (`com.vitorpamplona.quartz:quartz`). To benchmark an unreleased
+Quartz, point the build at an Amethyst checkout: `QUARTZ_DIR=../amethyst ./jvm/run.sh`
+(or `-PquartzDir=…` on Gradle); its `:quartz` replaces the release through a composite
+build, and the Quartz rows record the checkout's commit (`local amethyst@<sha>`) as their
+version. Jackson and
 kotlinx.serialization are pinned to the versions that Quartz release uses. Licenses were
 checked against each artifact's published POM.
 
 | id | library | version | license | mode | input |
 |---|---|---|---|---|---|
-| `quartz-jackson` | Quartz `JacksonMapper` (jackson-databind + `EventDeserializer`, intern + `EventFactory`) | 2.22.3 | Apache-2.0 (Quartz: MIT) | typed | string |
-| `quartz-loop` / `quartz-loop-nointern` / `quartz-loop-plain` | breakdown of `quartz-jackson`: its deserializer loop on bare jackson-core (no databind), then without `String.intern()`, then with a plain `Event` instead of `EventFactory` | 2.22.3 | Apache-2.0 (Quartz: MIT) | typed | string |
-| `quartz-kotlinx` | Quartz `KotlinSerializationMapper` (the iOS/native path) | 1.11.0 | Apache-2.0 (Quartz: MIT) | typed | string |
+| `quartz-jackson` | Quartz `JacksonMapper` (jackson-databind + `EventDeserializer` + `EventFactory`; Quartz ≤ 1.19.0 also interns here) | Quartz | Apache-2.0 (Quartz: MIT) | typed | string |
+| `quartz-jackson-cacheshare` | `quartz-jackson` + `Event.shareStrings`, what Amethyst's LocalCache does to an event it keeps (needs Quartz > 1.19.0) | Quartz | Apache-2.0 (Quartz: MIT) | typed | string |
+| `quartz-loop` / `quartz-loop-intern` / `quartz-loop-plain` | breakdown of `quartz-jackson`: its deserializer loop on bare jackson-core (no databind), then with the parse-time `String.intern()` of Quartz ≤ 1.19.0, then with a plain `Event` instead of `EventFactory` | 2.22.3 | Apache-2.0 (Quartz: MIT) | typed | string |
+| `quartz-kotlinx` | Quartz `KotlinSerializationMapper` (the iOS/native path) | Quartz | Apache-2.0 (Quartz: MIT) | typed | string |
 | `jackson-streaming-bytes` / `-string` | jackson-core `JsonFactory`, hand loop | 2.22.3 | Apache-2.0 | typed | bytes / string |
 | `jackson-tree` | jackson-databind `readTree` | 2.22.3 | Apache-2.0 | dom | bytes |
 | `kotlinx-typed` / `kotlinx-stream` / `kotlinx-element` | kotlinx-serialization-json | 1.11.0 | Apache-2.0 | typed / typed / dom | string / bytes / string |

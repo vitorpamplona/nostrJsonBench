@@ -15,6 +15,7 @@ The latest published run is in [`results/reference/`](results/reference/).
 ./run.sh --only jvm,rust       # a subset
 ./run.sh --workloads all,notes # any HARNESS.md flag goes to every harness
 CORPUS_SOURCE=dump.ndjson.gz ./run.sh --rebuild-corpus   # your own events
+QUARTZ_DIR=../amethyst ./run.sh --only jvm               # an unreleased Quartz from an Amethyst checkout
 ```
 
 Results: `results/<harness>.json`, merged into `results/report.md`
@@ -66,7 +67,7 @@ workload's reference digest:
 
 | dir | harness | notes |
 |---|---|---|
-| `jvm/` | standalone Gradle project (Kotlin, one JVM fork per parser), Quartz from Maven Central | Quartz's own paths + Jackson, kotlinx, Gson, Moshi, fastjson2, DSL-JSON, simdjson-java, jsoniter (Java/Scala), Parsson, minimal-json, json-smart, org.json; `quartz-loop*` rows break `quartz-jackson` down |
+| `jvm/` | standalone Gradle project (Kotlin, one JVM fork per parser), Quartz from Maven Central or a local Amethyst checkout (`QUARTZ_DIR=…`) | Quartz's own paths + Jackson, kotlinx, Gson, Moshi, fastjson2, DSL-JSON, simdjson-java, jsoniter (Java/Scala), Parsson, minimal-json, json-smart, org.json; `quartz-loop*` rows break `quartz-jackson` down |
 | `rust/` | Cargo | serde_json, simd-json, sonic-rs, jiter, simdjson-rust, miniserde, nanoserde, … |
 | `cpp/` | CMake, deps fetched into `.cache/` | simdjson, yyjson, RapidJSON, glaze, Boost.JSON, nlohmann, sajson, cJSON, json-c, Jansson, jsmn |
 | `go/` | Go module, one process per parser | stdlib, json/v2, sonic, goccy, easyjson, jsoniter, segmentio, fastjson, simdjson-go, go-nostr, fiatjaf.com/nostr, … |

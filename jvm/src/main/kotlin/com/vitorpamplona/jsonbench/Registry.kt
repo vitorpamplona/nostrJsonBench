@@ -43,9 +43,10 @@ import com.vitorpamplona.jsonbench.parsers.MoshiStreaming
 import com.vitorpamplona.jsonbench.parsers.OrgJsonDom
 import com.vitorpamplona.jsonbench.parsers.ParssonStreaming
 import com.vitorpamplona.jsonbench.parsers.QuartzJackson
+import com.vitorpamplona.jsonbench.parsers.QuartzJacksonCacheShare
 import com.vitorpamplona.jsonbench.parsers.QuartzKotlinx
 import com.vitorpamplona.jsonbench.parsers.QuartzLoop
-import com.vitorpamplona.jsonbench.parsers.QuartzLoopNoIntern
+import com.vitorpamplona.jsonbench.parsers.QuartzLoopIntern
 import com.vitorpamplona.jsonbench.parsers.QuartzLoopPlain
 import com.vitorpamplona.jsonbench.parsers.SimdjsonDom
 import com.vitorpamplona.jsonbench.parsers.SimdjsonSchema
@@ -96,18 +97,30 @@ val PARSERS: List<ParserSpec> =
     listOf(
         ParserSpec(
             "quartz-jackson",
-            "jackson-databind via Quartz JacksonMapper",
-            "jackson",
+            "Quartz JacksonMapper (jackson-databind + EventDeserializer)",
+            "quartz",
             "Apache-2.0 AND MIT",
             "typed",
             "string",
-            "Amethyst's production path: JacksonMapper.fromJson(String) -> Quartz EventDeserializer " +
-                "(String.intern() on id, pubkey and tag values; EventFactory builds the kind's Event subclass). The baseline.",
+            "Amethyst's production path: JacksonMapper.fromJson(String) -> Quartz EventDeserializer -> " +
+                "EventFactory builds the kind's Event subclass. The baseline. Quartz 1.19.0 and earlier also " +
+                "interned id, pubkey and tag values here; later versions do it at LocalCache entry.",
         ) { QuartzJackson() },
         ParserSpec(
+            "quartz-jackson-cacheshare",
+            "Quartz JacksonMapper + Event.shareStrings",
+            "quartz",
+            "Apache-2.0 AND MIT",
+            "typed",
+            "string",
+            "quartz-jackson plus what LocalCache does to an event it keeps (Event.shareStrings: id and " +
+                "pubkey shared with the cache keys, tag values interned), for every event: the worst case " +
+                "where every event is new and kept. Needs a Quartz newer than 1.19.0.",
+        ) { QuartzJacksonCacheShare() },
+        ParserSpec(
             "quartz-kotlinx",
-            "kotlinx-serialization-json via Quartz KotlinSerializationMapper",
-            "kotlinx-serialization",
+            "Quartz KotlinSerializationMapper (kotlinx-serialization-json)",
+            "quartz",
             "Apache-2.0 AND MIT",
             "typed",
             "string",
@@ -120,20 +133,21 @@ val PARSERS: List<ParserSpec> =
             "Apache-2.0 AND MIT",
             "typed",
             "string",
-            "Breakdown row: Quartz's EventDeserializer loop as shipped (String.intern() on id, pubkey and " +
-                "every tag value + EventFactory) on a bare jackson-core parser. quartz-jackson minus this = " +
-                "the cost of going through ObjectMapper.readValue.",
+            "Breakdown row: Quartz's EventDeserializer loop + EventFactory as shipped after Amethyst #4583 " +
+                "(no String.intern()) on a bare jackson-core parser. quartz-jackson minus this = the cost of " +
+                "going through ObjectMapper.readValue.",
         ) { QuartzLoop() },
         ParserSpec(
-            "quartz-loop-nointern",
+            "quartz-loop-intern",
             "jackson-core + Quartz's EventDeserializer loop",
             "jackson",
             "Apache-2.0 AND MIT",
             "typed",
             "string",
-            "Breakdown row: quartz-loop without String.intern(). Speed difference = what interning costs; " +
+            "Breakdown row: quartz-loop plus the String.intern() on id, pubkey and every tag value that " +
+                "Quartz 1.19.0 and earlier did while parsing. Speed difference = what that costs; " +
                 "retained-heap difference = what it saves.",
-        ) { QuartzLoopNoIntern() },
+        ) { QuartzLoopIntern() },
         ParserSpec(
             "quartz-loop-plain",
             "jackson-core + Quartz's EventDeserializer loop",
@@ -141,7 +155,7 @@ val PARSERS: List<ParserSpec> =
             "Apache-2.0 AND MIT",
             "typed",
             "string",
-            "Breakdown row: as quartz-loop-nointern but builds a plain Event instead of calling EventFactory. " +
+            "Breakdown row: as quartz-loop but builds a plain Event instead of calling EventFactory. " +
                 "The difference is EventFactory's cost.",
         ) { QuartzLoopPlain() },
         ParserSpec(

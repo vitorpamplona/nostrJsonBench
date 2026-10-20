@@ -32,8 +32,9 @@ import com.vitorpamplona.quartz.nip01Core.core.Event as QuartzEvent
  * Quartz's EventDeserializer loop (hash-dispatched field names, TagArrayDeserializer's
  * tag loop) copied onto a bare jackson-core parser, with each of its extra costs behind a
  * switch. Together with `quartz-jackson` these rows split the production path's time into
- * databind `readValue` overhead, `String.intern()` and `EventFactory` building the kind's
- * subclass; their retained heap shows what interning saves in return.
+ * databind `readValue` overhead and `EventFactory` building the kind's subclass, and
+ * `quartz-loop-intern` keeps the parse-time `String.intern()` of Quartz 1.19.0 and earlier
+ * measurable: its retained heap shows what interning saves, its time what it costs.
  */
 class QuartzEventLoop(
     private val intern: Boolean,
@@ -108,9 +109,12 @@ class QuartzEventLoop(
         }
 }
 
-/** Quartz's EventDeserializer loop as shipped (intern + EventFactory), minus jackson-databind's readValue. */
+/**
+ * Quartz's EventDeserializer loop as it ships after Amethyst #4583 (EventFactory, no
+ * String.intern(); interning moved to LocalCache entry), minus jackson-databind's readValue.
+ */
 class QuartzLoop : StringInputParser() {
-    private val loop = QuartzEventLoop(intern = true, factory = true)
+    private val loop = QuartzEventLoop(intern = false, factory = true)
 
     override fun decode(input: String): Event = loop.parse(input)!!.let { Event(it.id, it.pubKey, it.createdAt, it.kind, it.tags, it.content, it.sig) }
 
@@ -123,9 +127,9 @@ class QuartzLoop : StringInputParser() {
     }
 }
 
-/** Quartz's loop + EventFactory, without String.intern(). */
-class QuartzLoopNoIntern : StringInputParser() {
-    private val loop = QuartzEventLoop(intern = false, factory = true)
+/** The loop as Quartz 1.19.0 and earlier shipped it: String.intern() on id, pubkey and every tag value. */
+class QuartzLoopIntern : StringInputParser() {
+    private val loop = QuartzEventLoop(intern = true, factory = true)
 
     override fun decode(input: String): Event = loop.parse(input)!!.let { Event(it.id, it.pubKey, it.createdAt, it.kind, it.tags, it.content, it.sig) }
 
