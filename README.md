@@ -1,6 +1,6 @@
-# nostrJsonBench
+# Nostr JSON Parsing Benchmark
 
-How fast can a JSON parser turn a Nostr event into an object? And how much memory does it
+How fast can a JSON parser turn a Nostr JSON event into an object? And how much memory does it
 use?
 
 We ran 72 libraries in six languages over the same 31k real events. Counting each
@@ -16,15 +16,6 @@ Each row is one library, using its fastest path from what a WebSocket delivers (
 `String`, a Rust `&str`, …) to an event with owned strings.
 
 Measured on the `all` workload, 2026-10-20, a 4-core Xeon, single thread.
-
-What the memory columns mean:
-
-- **alloc**: bytes one parse allocates, garbage and the event together.
-- **allocs**: the number of allocations, where the runtime can count them.
-- **retained**: bytes each parsed event keeps alive.
-
-Rust, C++ and Go count allocations. The JVM and Deno report bytes only. Node, Bun and
-Python report neither, shown as –.
 
 | # | runtime | parser | ns/event | alloc B/event | allocs/event | retained B/event |
 |---:|---|---|---:|---:|---:|---:|
@@ -88,8 +79,8 @@ Python report neither, shown as –.
 | 58 | Deno | `streamparser-json` | 11,482 | 12,047 | – | 1,701 |
 | 59 | JVM | `simdjson-java-schema` | 41,481 | 62,759 | – | 1,383 |
 
-Quartz (`quartz-jackson`) spends almost all its time in Jackson's tokenizer. A faster
-tokenizer is where the remaining gain is: fastjson2, or Jackson fed bytes.
+Rust, C++ and Go count allocations. The JVM and Deno report bytes only. Node, Bun, and
+Python report neither, shown as –.
 
 Four libraries failed verification and are not ranked: cJSON, ojg (Go),
 `@jsonjoy.com/json-pack` and the `simdjson` npm addon.
