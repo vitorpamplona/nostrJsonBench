@@ -47,6 +47,8 @@ class QuartzEventLoop(
 
     fun parseToBench(input: String): Event = json.createParser(input).use { readBench(it) }
 
+    fun readFrom(p: JsonParser): QuartzEvent = read(p)!!
+
     private fun str(p: JsonParser): String = if (intern) p.text.intern() else p.text
 
     private inline fun <T> readFields(

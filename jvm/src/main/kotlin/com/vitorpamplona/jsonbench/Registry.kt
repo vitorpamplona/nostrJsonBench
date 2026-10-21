@@ -42,9 +42,13 @@ import com.vitorpamplona.jsonbench.parsers.MinimalJsonDom
 import com.vitorpamplona.jsonbench.parsers.MoshiStreaming
 import com.vitorpamplona.jsonbench.parsers.OrgJsonDom
 import com.vitorpamplona.jsonbench.parsers.ParssonStreaming
+import com.vitorpamplona.jsonbench.parsers.QuartzHand
+import com.vitorpamplona.jsonbench.parsers.QuartzHandChars
+import com.vitorpamplona.jsonbench.parsers.QuartzHandFresh
 import com.vitorpamplona.jsonbench.parsers.QuartzJackson
 import com.vitorpamplona.jsonbench.parsers.QuartzKotlinx
 import com.vitorpamplona.jsonbench.parsers.QuartzLoop
+import com.vitorpamplona.jsonbench.parsers.QuartzLoopBytes
 import com.vitorpamplona.jsonbench.parsers.QuartzLoopIntern
 import com.vitorpamplona.jsonbench.parsers.QuartzLoopPlain
 import com.vitorpamplona.jsonbench.parsers.SimdjsonDom
@@ -151,6 +155,47 @@ val PARSERS: List<ParserSpec> =
                 "The difference is EventFactory's cost.",
             variant = true,
         ) { QuartzLoopPlain() },
+        ParserSpec(
+            "quartz-hand",
+            "hand-written Nostr event reader (prototype)",
+            "quartz",
+            "MIT",
+            "typed",
+            "string",
+            "PROTOTYPE for Quartz: a hand-written reader straight off the String (no tokens, substring per value, " +
+                "StringBuilder only on escapes) + EventFactory.",
+            variant = true,
+        ) { QuartzHand() },
+        ParserSpec(
+            "quartz-hand-chars",
+            "hand-written Nostr event reader (prototype)",
+            "quartz",
+            "MIT",
+            "typed",
+            "string",
+            "PROTOTYPE for Quartz: the hand-written reader over a char[] copy of the frame (getChars), + EventFactory.",
+            variant = true,
+        ) { QuartzHandChars() },
+        ParserSpec(
+            "quartz-hand-fresh",
+            "hand-written Nostr event reader (prototype)",
+            "quartz",
+            "MIT",
+            "typed",
+            "string",
+            "PROTOTYPE for Quartz: quartz-hand with a new reader object per parse.",
+            variant = true,
+        ) { QuartzHandFresh() },
+        ParserSpec(
+            "quartz-loop-bytes",
+            "jackson-core + Quartz's EventDeserializer loop",
+            "jackson",
+            "Apache-2.0 AND MIT",
+            "typed",
+            "string→bytes",
+            "Breakdown row: quartz-loop on Jackson's UTF-8 byte parser; String.toByteArray(UTF_8) is timed.",
+            variant = true,
+        ) { QuartzLoopBytes() },
         ParserSpec(
             "jackson-streaming-bytes",
             "jackson-core",
