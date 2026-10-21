@@ -484,7 +484,7 @@ class NostrEventReader {
                     F_ID -> id = readString()
                     F_PUBKEY -> pubKey = readString()
                     F_CREATED_AT -> createdAt = readLong()
-                    F_KIND -> kind = readLong().toInt()
+                    F_KIND -> kind = readInt()
                     F_TAGS -> tags = readTags()
                     F_CONTENT -> content = readString()
                     F_SIG -> sig = readString()
@@ -547,6 +547,7 @@ class NostrEventReader {
         val start = i
         val q = quoteAfter(start)
         if (q < 0) fail("unexpected end of input in a string")
+        if (nextEscape < start) nextEscape = s.indexOf('\\', start).let { if (it < 0) n else it }
         if (q < nextEscape) {
             i = q + 1
             return s.substring(start, q)
@@ -605,29 +606,74 @@ class NostrEventReader {
             else -> fail("bad hex digit in a \\u escape")
         }
 
+    /** Scans one JSON number at i with the exact grammar; returns true when it has a fraction or an exponent. */
+    private fun scanNumber(): Boolean {
+        if (i < n && s[i] == '-') i++
+        if (i >= n) fail("expected a number")
+        val c0 = s[i]
+        if (c0 == '0') {
+            i++
+            if (i < n && s[i] in '0'..'9') fail("leading zeros are not allowed")
+        } else if (c0 in '1'..'9') {
+            i++
+            while (i < n && s[i] in '0'..'9') i++
+        } else {
+            fail("expected a number")
+        }
+        var real = false
+        if (i < n && s[i] == '.') {
+            i++
+            real = true
+            if (i >= n || s[i] !in '0'..'9') fail("expected a digit after the decimal point")
+            while (i < n && s[i] in '0'..'9') i++
+        }
+        if (i < n && (s[i] == 'e' || s[i] == 'E')) {
+            i++
+            real = true
+            if (i < n && (s[i] == '+' || s[i] == '-')) i++
+            if (i >= n || s[i] !in '0'..'9') fail("expected a digit in the exponent")
+            while (i < n && s[i] in '0'..'9') i++
+        }
+        return real
+    }
+
+    /** A JSON number as a long. Like Jackson's longValue: a fraction is truncated, out of range fails. */
     private fun readLong(): Long {
         val start = i
-        var neg = false
-        if (s[i] == '-') {
-            neg = true
-            i++
+        val real = scanNumber()
+        if (!real) {
+            val neg = s[start] == '-'
+            val first = if (neg) start + 1 else start
+            if (i - first <= 18) {
+                var v = 0L
+                for (k in first until i) v = v * 10 + (s[k] - '0')
+                return if (neg) -v else v
+            }
+            return s.substring(start, i).toLongOrNull() ?: fail("number out of range of long")
         }
+        val d = s.substring(start, i).toDouble()
+        if (!(d >= Long.MIN_VALUE.toDouble() && d <= Long.MAX_VALUE.toDouble())) fail("number out of range of long")
+        return d.toLong()
+    }
+
+    /** A JSON number as an int. Like Jackson's intValue: a fraction is truncated, out of range fails. */
+    private fun readInt(): Int {
+        val start = i
+        val real = scanNumber()
+        if (!real) {
+            val v = if (i - start <= 11) readDigits(start) else s.substring(start, i).toLongOrNull() ?: fail("number out of range of int")
+            if (v < Int.MIN_VALUE || v > Int.MAX_VALUE) fail("number out of range of int")
+            return v.toInt()
+        }
+        val d = s.substring(start, i).toDouble()
+        if (!(d >= Int.MIN_VALUE.toDouble() && d <= Int.MAX_VALUE.toDouble())) fail("number out of range of int")
+        return d.toInt()
+    }
+
+    private fun readDigits(start: Int): Long {
+        val neg = s[start] == '-'
         var v = 0L
-        var digits = 0
-        while (i < n) {
-            val c = s[i]
-            if (c < '0' || c > '9') break
-            v = v * 10 + (c - '0')
-            i++
-            digits++
-        }
-        if (digits == 0) fail("expected a number")
-        if (i < n && (s[i] == '.' || s[i] == 'e' || s[i] == 'E')) {
-            // Rare: a fraction or exponent. Coerce like Jackson's longValue does.
-            while (i < n && s[i] in "0123456789.eE+-") i++
-            return s.substring(start, i).toDouble().toLong()
-        }
-        if (digits > 18) return s.substring(start, i).toLong()
+        for (k in (if (neg) start + 1 else start) until i) v = v * 10 + (s[k] - '0')
         return if (neg) -v else v
     }
 
@@ -714,46 +760,82 @@ class NostrEventReader {
 
     private fun numberText(): String {
         val start = i
-        while (i < n && s[i] in "0123456789.eE+-") i++
-        if (i == start) fail("unexpected character in a tag")
+        scanNumber()
         return s.substring(start, i)
     }
 
-    private fun skipValue() {
+    private fun skipValue(depth: Int = 0) {
         when (s[i]) {
             '"' -> {
                 i++
-                readStringBody()
+                skipStringBody()
             }
-            '{', '[' -> skipContainer()
+            '{' -> skipObject(depth + 1)
+            '[' -> skipArray(depth + 1)
             't' -> literal("true", "")
             'f' -> literal("false", "")
             'n' -> literal("null", "")
-            else -> numberText()
+            else -> scanNumber()
         }
     }
 
-    private fun skipContainer() {
-        var depth = 0
-        while (i < n) {
-            when (s[i]) {
-                '"' -> {
-                    i++
-                    readStringBody()
-                    continue
-                }
-                '{', '[' -> depth++
-                '}', ']' -> {
-                    depth--
-                    if (depth == 0) {
-                        i++
-                        return
-                    }
-                }
-            }
-            i++
+    /** Like [readStringBody] without building the value when it has no escapes. */
+    private fun skipStringBody() {
+        val q = quoteAfter(i)
+        if (q < 0) fail("unexpected end of input in a string")
+        if (nextEscape < i) nextEscape = s.indexOf('\\', i).let { if (it < 0) n else it }
+        if (q < nextEscape) {
+            i = q + 1
+        } else {
+            readStringBody()
         }
-        fail("unexpected end of input in a value")
+    }
+
+    private fun skipArray(depth: Int) {
+        if (depth > MAX_DEPTH) fail("nested too deeply")
+        i++
+        ws()
+        if (i < n && s[i] == ']') {
+            i++
+            return
+        }
+        while (true) {
+            ws()
+            if (i >= n) fail("unexpected end of input in an array")
+            skipValue(depth)
+            ws()
+            if (i >= n) fail("unexpected end of input in an array")
+            val c = s[i++]
+            if (c == ',') continue
+            if (c == ']') return
+            fail("expected ',' or ']'")
+        }
+    }
+
+    private fun skipObject(depth: Int) {
+        if (depth > MAX_DEPTH) fail("nested too deeply")
+        i++
+        ws()
+        if (i < n && s[i] == '}') {
+            i++
+            return
+        }
+        while (true) {
+            ws()
+            if (i >= n || s[i] != '"') fail("expected a field name")
+            i++
+            skipStringBody()
+            expect(':')
+            ws()
+            if (i >= n) fail("unexpected end of input in an object")
+            skipValue(depth)
+            ws()
+            if (i >= n) fail("unexpected end of input in an object")
+            val c = s[i++]
+            if (c == ',') continue
+            if (c == '}') return
+            fail("expected ',' or '}'")
+        }
     }
 
     companion object {
@@ -765,6 +847,7 @@ class NostrEventReader {
         private const val F_TAGS = 5
         private const val F_CONTENT = 6
         private const val F_SIG = 7
+        private const val MAX_DEPTH = 1000
         private val EMPTY_TAGS = emptyArray<Array<String>>()
         private val EMPTY_TAG = emptyArray<String>()
     }
