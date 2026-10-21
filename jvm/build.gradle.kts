@@ -14,14 +14,15 @@ application {
     mainClass.set("com.vitorpamplona.jsonbench.MainKt")
     applicationName = "jsonbench"
     // The parent process forks one child JVM per parser with these same arguments
-    // (see Main.kt), so every parser gets the same fixed heap and collector.
-    // - A fixed 2g heap: no heap resizing in the middle of a measurement.
-    // - G1 explicitly: the JVM falls back to Serial on small containers, and the
-    //   collector changes both the allocation cost and the GC numbers we report.
+    // (see Main.kt), so every parser gets the same heap and collector.
+    // - The heap Amethyst Desktop runs with: -Xmx2g, no -Xms, so G1 sizes and grows it
+    //   the way it does in the app.
+    // - G1 explicitly: the desktop's default on any machine with 2+ cores and 2 GB, but the
+    //   JVM falls back to Serial on small containers, and the collector changes both the
+    //   allocation cost and the GC numbers we report.
     // - jdk.incubator.vector: simdjson-java needs the incubating Vector API.
     applicationDefaultJvmArgs =
         listOf(
-            "-Xms2g",
             "-Xmx2g",
             "-XX:+UseG1GC",
             "--add-modules",

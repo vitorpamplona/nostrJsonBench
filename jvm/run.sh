@@ -7,7 +7,7 @@
 #   ./jvm/run.sh --parsers quartz-jackson,fastjson2-reader --workloads all,notes
 #   ./jvm/run.sh --list
 #
-# The installed `jsonbench` script carries the JVM flags (-Xms2g -Xmx2g -XX:+UseG1GC
+# The installed `jsonbench` script carries the JVM flags (-Xmx2g -XX:+UseG1GC
 # --add-modules jdk.incubator.vector); the parent process forks one child JVM per parser
 # with those same flags. Extra JVM flags can be passed through JAVA_OPTS.
 #

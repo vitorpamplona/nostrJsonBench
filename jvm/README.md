@@ -24,8 +24,9 @@ Extra JVM flags go through `JAVA_OPTS`.
 ## How it measures
 
 - **One JVM per parser.** The process you start only orchestrates: for each parser it
-  forks a child with the same `java`, classpath and JVM flags (`-Xms2g -Xmx2g
-  -XX:+UseG1GC --add-modules jdk.incubator.vector`). The child verifies and times that
+  forks a child with the same `java`, classpath and JVM flags (`-Xmx2g
+  -XX:+UseG1GC --add-modules jdk.incubator.vector`). `-Xmx2g` and G1 are what Amethyst
+  Desktop runs with; the heap starts small and grows, as in the app. The child verifies and times that
   parser on every selected workload and hands its rows back through a temp file.
 - **Three timed JVMs per parser** (`--forks N`, 1 with `--quick`). The JIT sometimes
   compiles a parser into a faster or slower shape in one JVM than in the next, so each row
