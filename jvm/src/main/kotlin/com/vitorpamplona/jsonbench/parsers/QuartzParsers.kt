@@ -22,6 +22,7 @@ package com.vitorpamplona.jsonbench.parsers
 
 import com.vitorpamplona.jsonbench.Event
 import com.vitorpamplona.jsonbench.StringInputParser
+import com.vitorpamplona.quartz.nip01Core.core.OptimizedJsonMapper
 import com.vitorpamplona.quartz.nip01Core.jackson.JacksonMapper
 import com.vitorpamplona.quartz.nip01Core.kotlinSerialization.KotlinSerializationMapper
 import com.vitorpamplona.quartz.nip01Core.core.Event as QuartzEvent
@@ -41,6 +42,25 @@ class QuartzJackson : StringInputParser() {
         var sink = 0L
         for (s in inputs) {
             val e = JacksonMapper.fromJson(s)
+            sink += e.kind + e.tags.size + e.content.length
+        }
+        return sink
+    }
+}
+
+/**
+ * What Amethyst calls: OptimizedJsonMapper.fromJson. Jackson underneath up to Quartz 1.19.0;
+ * Quartz's own EventJsonReader once it ships.
+ */
+class QuartzOptimized : StringInputParser() {
+    override fun decode(input: String) = OptimizedJsonMapper.fromJson(input).toBench()
+
+    override fun keep(input: String): Any = OptimizedJsonMapper.fromJson(input)
+
+    override fun parseAll(inputs: Array<String>): Long {
+        var sink = 0L
+        for (s in inputs) {
+            val e = OptimizedJsonMapper.fromJson(s)
             sink += e.kind + e.tags.size + e.content.length
         }
         return sink

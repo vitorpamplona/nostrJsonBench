@@ -51,6 +51,7 @@ import com.vitorpamplona.jsonbench.parsers.QuartzLoop
 import com.vitorpamplona.jsonbench.parsers.QuartzLoopBytes
 import com.vitorpamplona.jsonbench.parsers.QuartzLoopIntern
 import com.vitorpamplona.jsonbench.parsers.QuartzLoopPlain
+import com.vitorpamplona.jsonbench.parsers.QuartzOptimized
 import com.vitorpamplona.jsonbench.parsers.SimdjsonDom
 import com.vitorpamplona.jsonbench.parsers.SimdjsonSchema
 import com.vitorpamplona.jsonbench.parsers.Utf8Decode
@@ -111,6 +112,16 @@ val PARSERS: List<ParserSpec> =
                 "EventFactory builds the kind's Event subclass. The baseline. Quartz 1.19.0 and earlier also " +
                 "interned id, pubkey and tag values here.",
         ) { QuartzJackson() },
+        ParserSpec(
+            "quartz-optimized",
+            "Quartz OptimizedJsonMapper",
+            "quartz",
+            "MIT",
+            "typed",
+            "string",
+            "What Amethyst calls: OptimizedJsonMapper.fromJson(String). Jackson (quartz-jackson) up to Quartz " +
+                "1.19.0; Quartz's hand-written EventJsonReader where the Quartz under test has it (see runtime).",
+        ) { QuartzOptimized() },
         ParserSpec(
             "quartz-kotlinx",
             "Quartz KotlinSerializationMapper (kotlinx-serialization-json)",
