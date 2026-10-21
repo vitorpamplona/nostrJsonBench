@@ -51,9 +51,13 @@ Every row's `notes` field in the results says exactly what the glue does. The po
 matter when reading the numbers:
 
 - **Input is the WebSocket text frame**: a `std::string` (what IXWebSocket, websocketpp and
-  Boost.Beast hand an app). The harness builds one per line from `(data, size)` before timing,
-  so `capacity() == size()`: no spare capacity a parser could use as padding. Every parser
-  starts from that string inside the timed loop:
+  Boost.Beast hand an app), built from `(data, size)`, so `capacity() == size()`: no spare
+  capacity a parser could use as padding.
+- **Arrival** (HARNESS.md "Timing"): a round walks the workload in bursts of `--burst` frames
+  (default 64). For each burst the harness builds the frames as new `std::string`s (untimed),
+  times `Runner::parse_burst()` over them with `steady_clock`, then frees them. A round's time is
+  the sum of its bursts; warm-up runs the same rounds. Verify, retained heap and the digest use
+  the preloaded lines. Every parser starts from the frame inside the timed parse:
   - `string`: the library reads `data()`/`size()` (or `c_str()`, whose NUL is free) directly.
     Copies the library makes on its own (yyjson_read and sajson copy into their document) are
     part of the parse.
@@ -102,11 +106,17 @@ matter when reading the numbers:
 `aligned_alloc`, `posix_memalign`, `valloc` and `pvalloc` in the executable (linked with
 `-rdynamic`) and forwards them to glibc's `__libc_*` functions, so it also sees
 `operator new` from libstdc++ and every C library. Each successful call is one allocation;
-bytes are the requested size (for `realloc`, the full new size). `gc_count` and `gc_ms` are null.
+bytes are the requested size (for `realloc`, the full new size). A `realloc` that moves the block
+counts as one new allocation (objects created), one glibc grows in place as none: that took
+`jsonc-dom` from 48.1 to 44.0 allocs/event on `reactions`; no other row changed. The harness
+reads `jb_alloc_count`/`jb_alloc_bytes` just before and after each burst's timed parses and sums
+them, so the frame copies and the harness's own bookkeeping are not counted (the `*-pool` rows now
+read exactly 0). `gc_count` and `gc_ms` are null.
 
 It also keeps a live-byte counter: a block adds its `malloc_usable_size()` when handed out and
 subtracts it when freed (`realloc` applies the difference). That is the heap the block really
 occupies (the request rounded up to glibc's 16-byte chunks), without the 8-byte chunk header.
+Next to it is a live-block counter (+1 per block handed out, -1 per `free`; `realloc` keeps it).
 
 **Retained heap** (`retained_bytes_per_event`): after timing, `Runner::keep_all()` parses every
 event once more and keeps each result as its own heap object in a pointer vector (reserved
@@ -115,6 +125,13 @@ before the first reading, so the vector is not counted): `Event*` for typed rows
 independent document (`yyjson_doc*`, `rapidjson::Document*`, `nlohmann::json*`,
 `glz::generic_u64*`, `cJSON*`, `boost::json::value*`, `sajson::document*`, `json_object*`,
 `json_t*`). Retained = live bytes after minus before, divided by events; then all are freed.
+`retained_objects_per_event` is the same reading of the live-block counter: the kept node
+(`new Event`, the `new json::value`...) counts as one, and a `std::string` of up to 15 bytes lives
+inline (SSO) and is none. A typed `Event` therefore retains 1 node + `id`/`pubkey`/`sig` + `content`
+when over 15 bytes + 1 `tags` vector + per tag 1 vector and its values over 15 bytes: 14.14 on
+`notes`, which every typed row but glaze reports. glaze keeps 0.6-0.9 more because a string whose
+raw JSON is 8-15 bytes (`"amethyst"`, an escaped emoji such as `\uD83E\uDD19`) gets a heap buffer
+instead of SSO. Each row's `objects_note` says how it was counted.
 `yyjson-borrowed` keeps each doc with its views. `glaze-borrowed` keeps each event with an
 exact-size copy of its frame, standing in for the websocket string the app would have to move
 in. The column is null where a result is a view into reused state: the simdjson rows (reused

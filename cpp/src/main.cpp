@@ -38,6 +38,7 @@ struct Options {
   long warmup_ms = 1000;
   long min_time_ms = 2000;
   long min_rounds = 5;
+  long burst = 64;
   bool list = false;
 };
 
@@ -67,6 +68,7 @@ Options parse_args(int argc, char** argv) {
     else if (a == "--warmup-ms") warm = std::stol(next());
     else if (a == "--min-time-ms") mt = std::stol(next());
     else if (a == "--min-rounds") mr = std::stol(next());
+    else if (a == "--burst") o.burst = std::stol(next());
     else if (a == "--quick") quick = true;
     else if (a == "--list") o.list = true;
     else fail("unknown argument: " + a);
@@ -79,6 +81,7 @@ Options parse_args(int argc, char** argv) {
   if (warm) o.warmup_ms = *warm;
   if (mt) o.min_time_ms = *mt;
   if (mr) o.min_rounds = *mr;
+  if (o.burst < 1) fail("--burst must be at least 1");
   return o;
 }
 
@@ -134,6 +137,49 @@ long long now_ns() {
   return std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch()).count();
 }
 
+// One round (HARNESS.md "Timing", Arrival): walk the workload in bursts of `burst` frames.
+// Untimed, build each burst's frames as new exact-size std::strings from the lines' bytes
+// (what IXWebSocket/websocketpp hand the app); time only the burst's parses; then free the
+// frames. The alloc counters are read around each timed part, so they cover the parses and
+// not the frame copies. `frames` is reserved by the caller and reused, so building a burst
+// allocates only the strings.
+struct RoundStats {
+  long long ns = 0;
+  uint64_t allocs = 0;
+  uint64_t alloc_bytes = 0;
+};
+
+RoundStats run_round(Runner& runner, const Lines& lines, std::vector<std::string>& frames, size_t burst) {
+  RoundStats st;
+  for (size_t b = 0; b < lines.size(); b += burst) {
+    const size_t e = std::min(lines.size(), b + burst);
+    for (size_t i = b; i < e; i++) frames.emplace_back(lines[i].data(), lines[i].size());
+    const uint64_t c0 = jb_alloc_count, b0 = jb_alloc_bytes;
+    const long long t0 = now_ns();
+    g_sink = g_sink + runner.parse_burst(Frames(frames));
+    const long long t1 = now_ns();
+    st.allocs += jb_alloc_count - c0;
+    st.alloc_bytes += jb_alloc_bytes - b0;
+    st.ns += t1 - t0;
+    frames.clear();
+  }
+  return st;
+}
+
+// How allocs_per_event and retained_objects_per_event were counted for this row.
+std::string objects_note(const ParserInfo& p) {
+  std::string s =
+      "malloc blocks from the interposed allocator (operator new included): every block is one object, a "
+      "realloc that moves is one new allocation and one glibc grows in place is none; a std::string of up to "
+      "15 bytes is stored inline (SSO) and allocates nothing";
+  if (p.mode == "typed") s += "; retained objects include the kept Event node itself (new Event)";
+  if (p.id == "glaze-borrowed") s += "; retained objects include the kept exact-size copy of each frame";
+  if (p.library == "glaze" && p.mode != "dom")
+    s += "; glaze leaves a std::string whose raw JSON is 8-15 bytes (e.g. \"amethyst\", an escaped emoji) in a "
+         "heap buffer instead of SSO, +0.6-0.9 objects/event over the other typed rows";
+  return s;
+}
+
 ojson run_one(const ParserInfo& p, const ojson& wl, const Lines& lines, const Options& o) {
   const std::string wname = wl["name"];
   const uint64_t events = wl["events"];
@@ -151,6 +197,7 @@ ojson run_one(const ParserInfo& p, const ojson& wl, const Lines& lines, const Op
   row["workload"] = wname;
   row["events"] = events;
   row["bytes"] = bytes;
+  row["objects_note"] = objects_note(p);
 
   uint64_t errors = 0;
   std::string first_error;
@@ -194,6 +241,7 @@ ojson run_one(const ParserInfo& p, const ojson& wl, const Lines& lines, const Op
     row["gc_count"] = nullptr;
     row["gc_ms"] = nullptr;
     row["retained_bytes_per_event"] = nullptr;
+    row["retained_objects_per_event"] = nullptr;
   };
 
   // A parser that fails on some event cannot run a clean round; one with only a digest
@@ -204,23 +252,26 @@ ojson run_one(const ParserInfo& p, const ojson& wl, const Lines& lines, const Op
   }
 
   try {
+    const size_t burst = size_t(o.burst);
+    std::vector<std::string> frames;
+    frames.reserve(std::min(burst, lines.size()));
+
     const long long warm_end = now_ns() + o.warmup_ms * 1000000LL;
     do {
-      g_sink = g_sink + runner->round();
+      run_round(*runner, lines, frames, burst);
     } while (now_ns() < warm_end);
 
     std::vector<long long> samples;
-    const uint64_t c0 = jb_alloc_count, b0 = jb_alloc_bytes;
+    uint64_t allocs = 0, alloc_bytes = 0;
     const long long start = now_ns();
     while (true) {
-      const long long t0 = now_ns();
-      g_sink = g_sink + runner->round();
-      const long long t1 = now_ns();
-      samples.push_back(t1 - t0);
+      const RoundStats st = run_round(*runner, lines, frames, burst);
+      samples.push_back(st.ns);
+      allocs += st.allocs;
+      alloc_bytes += st.alloc_bytes;
       if (samples.size() >= 10000) break;
-      if ((long)samples.size() >= o.min_rounds && (t1 - start) >= o.min_time_ms * 1000000LL) break;
+      if ((long)samples.size() >= o.min_rounds && (now_ns() - start) >= o.min_time_ms * 1000000LL) break;
     }
-    const uint64_t c1 = jb_alloc_count, b1 = jb_alloc_bytes;
 
     std::vector<long long> sorted = samples;
     std::sort(sorted.begin(), sorted.end());
@@ -236,8 +287,8 @@ ojson run_one(const ParserInfo& p, const ojson& wl, const Lines& lines, const Op
     row["ns_per_event"] = median / double(events);
     row["mb_per_s"] = double(bytes) / (median / 1e9) / 1e6;
     row["events_per_s"] = double(events) / (median / 1e9);
-    row["alloc_bytes_per_event"] = double(b1 - b0) / parsed;
-    row["allocs_per_event"] = double(c1 - c0) / parsed;
+    row["alloc_bytes_per_event"] = double(alloc_bytes) / parsed;
+    row["allocs_per_event"] = double(allocs) / parsed;
     row["gc_count"] = nullptr;
     row["gc_ms"] = nullptr;
   } catch (const std::exception& e) {
@@ -249,9 +300,14 @@ ojson run_one(const ParserInfo& p, const ojson& wl, const Lines& lines, const Op
 
   // Retained heap: parse every event once more, keep every result, count the live bytes.
   row["retained_bytes_per_event"] = nullptr;
+  row["retained_objects_per_event"] = nullptr;
   try {
     std::unique_ptr<Kept> kept = runner->keep_all();
-    if (kept) row["retained_bytes_per_event"] = double(kept->live_after - kept->live_before) / double(events);
+    if (kept) {
+      row["retained_bytes_per_event"] = double(kept->live_after - kept->live_before) / double(events);
+      row["retained_objects_per_event"] =
+          double(kept->live_count_after - kept->live_count_before) / double(events);
+    }
   } catch (const std::exception& e) {
     if (row["error"].is_null()) row["error"] = std::string("retain: ") + e.what();
   }
@@ -391,7 +447,8 @@ int main(int argc, char** argv) {
     out["language"] = "C/C++";
     out["runtime"] = std::string(JB_COMPILER) + ", " + JB_FLAGS + ", C++23, single-threaded";
     out["host"] = {{"cpu", cpu_model()}, {"cores", std::thread::hardware_concurrency()}, {"os", os_name()}};
-    out["settings"] = {{"warmup_ms", o.warmup_ms}, {"min_time_ms", o.min_time_ms}, {"min_rounds", o.min_rounds}};
+    out["settings"] = {{"warmup_ms", o.warmup_ms}, {"min_time_ms", o.min_time_ms}, {"min_rounds", o.min_rounds},
+                       {"burst", o.burst}};
     out["corpus_fingerprint"] = manifest["fingerprint"];
     out["results"] = ojson::array();
 
@@ -401,11 +458,12 @@ int main(int argc, char** argv) {
       for (const ParserInfo* p : selected) {
         ojson row = run_one(*p, w, lines, o);
         std::fprintf(stderr,
-                     "  %-28s %-8s digest=%-5s %9s MB/s %10s ns/ev %9s B/ev %7s allocs/ev %9s retained B/ev%s%s\n",
+                     "  %-28s %-8s digest=%-5s %9s MB/s %10s ns/ev %9s B/ev %7s allocs/ev %9s retained B/ev %6s retained objs/ev%s%s\n",
                      p->id.c_str(), p->mode.c_str(), row["digest_ok"].get<bool>() ? "ok" : "FAIL",
                      fmt(row["mb_per_s"], 1).c_str(), fmt(row["ns_per_event"], 1).c_str(),
                      fmt(row["alloc_bytes_per_event"], 1).c_str(), fmt(row["allocs_per_event"], 2).c_str(),
                      fmt(row["retained_bytes_per_event"], 1).c_str(),
+                     fmt(row["retained_objects_per_event"], 2).c_str(),
                      row["error"].is_null() ? "" : "  error: ",
                      row["error"].is_null() ? "" : row["error"].get<std::string>().c_str());
         out["results"].push_back(std::move(row));

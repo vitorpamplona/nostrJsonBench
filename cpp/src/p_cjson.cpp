@@ -47,9 +47,9 @@ class Dom final : public Runner {
     d.str(sv(member(root, "sig")));
     d.event_end();
   }
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) {
+    for (const auto& l : frames) {
       cJSON* root = cJSON_ParseWithLength(l.data(), l.size());
       sink += uint64_t(cJSON_GetObjectItemCaseSensitive(root, "kind")->valuedouble) +
               uint64_t(cJSON_GetArraySize(cJSON_GetObjectItemCaseSensitive(root, "tags")));

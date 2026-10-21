@@ -5,6 +5,7 @@
 #include <charconv>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -92,14 +93,18 @@ void digest_event(DigestWriter& d, const E& e) {
 
 extern "C" {
 extern int64_t jb_live_bytes;  // alloc_count.c: heap bytes currently handed out
+extern int64_t jb_live_count;  // alloc_count.c: heap blocks currently handed out
 }
 
 // Results kept alive for the retained-heap measurement (HARNESS.md "Retained heap").
 // live_before is read after the pointer vector is reserved, so the vector itself is not
-// counted; everything each result owns (its own node included) is.
+// counted; everything each result owns (its own node included) is. The *_count pair is the
+// same reading in heap blocks (retained_objects_per_event).
 struct Kept {
   int64_t live_before = 0;
   int64_t live_after = 0;
+  int64_t live_count_before = 0;
+  int64_t live_count_after = 0;
   virtual ~Kept() = default;
 };
 
@@ -118,26 +123,34 @@ std::unique_ptr<Kept> keep_each(size_t n, Make&& make) {
   auto k = std::make_unique<KeptAll<T, Free>>();
   k->items.reserve(n);
   k->live_before = jb_live_bytes;
+  k->live_count_before = jb_live_count;
   for (size_t i = 0; i < n; i++) k->items.push_back(make(i));
   k->live_after = jb_live_bytes;
+  k->live_count_after = jb_live_count;
   return k;
 }
 
-// The WebSocket text frames: one exact-size std::string per event (HARNESS.md "Input").
+// The preloaded WebSocket text frames: one exact-size std::string per event (HARNESS.md
+// "Input"). Verify, keep_all() and sizing scratch buffers use these.
 using Lines = std::vector<std::string>;
 
-// One (parser, workload) instance. The constructor receives the frames and may set up
-// reusable state (a parser, a scratch buffer) but must not transform the input: anything a
-// parser does on top of the std::string happens inside digest()/round(). digest() parses
-// event i once and feeds the digest, throwing on any failure. round() parses every event
-// once and returns the sink. keep_all() parses every event once more and keeps the results
-// (keep_each); it returns nullptr when a result is a view into reused parser state (a
-// reused tape, arena or scratch buffer), so retained heap is not measurable.
+// One burst of frames built fresh for the timed loop (HARNESS.md "Timing", Arrival): each an
+// exact-size std::string, freed after the burst.
+using Frames = std::span<const std::string>;
+
+// One (parser, workload) instance. The constructor receives the preloaded lines and may set
+// up reusable state (a parser, a scratch buffer) but must not transform the input: anything a
+// parser does on top of the std::string happens inside digest()/parse_burst(). digest()
+// parses event i once and feeds the digest, throwing on any failure. parse_burst() parses
+// each frame of a burst once (timed by the harness) and returns the sink. keep_all() parses
+// every event once more and keeps the results (keep_each); it returns nullptr when a result
+// is a view into reused parser state (a reused tape, arena or scratch buffer), so retained
+// heap is not measurable.
 class Runner {
  public:
   virtual ~Runner() = default;
   virtual void digest(size_t i, DigestWriter& d) = 0;
-  virtual uint64_t round() = 0;
+  virtual uint64_t parse_burst(Frames frames) = 0;
   virtual std::unique_ptr<Kept> keep_all() { return nullptr; }
 };
 

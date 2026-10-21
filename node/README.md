@@ -22,9 +22,9 @@ and version.
 ## Input: the text frame
 
 A WebSocket text frame reaches a JS app as a `string` (`MessageEvent.data` in browsers,
-Node 22's global `WebSocket`, Bun, Deno), so every parser starts from a string, prepared
-before timing with `TextDecoder` (a flat, sequential string, like the one a socket hands
-over). `input` follows [`HARNESS.md`](../HARNESS.md):
+Node 22's global `WebSocket`, Bun, Deno), so every parser starts from a string, built
+untimed with `TextDecoder.decode` (a new, flat string, like the one a socket hands over).
+`input` follows [`HARNESS.md`](../HARNESS.md):
 
 - `string`: the parser takes the string itself.
 - `string→bytes`: the parser only reads bytes, so the string is UTF-8 encoded inside the
@@ -41,6 +41,30 @@ The old `json-parse-bytes` (`TextDecoder` + `JSON.parse` from a `Uint8Array`) an
 `baseline-utf8-decode` rows were dropped: no WebSocket client hands a text frame over as a
 `Uint8Array`. The `ws` Buffer path stays as an extra because `ws` is what most Node relays
 and bots use.
+
+## Timing: bursts of fresh frames
+
+Rounds follow the "Arrival" rule in [`HARNESS.md`](../HARNESS.md). A round walks the
+workload in bursts of `--burst` frames (default 64; `--quick` keeps it). For each burst,
+untimed, every frame is decoded again from the line's bytes with `TextDecoder.decode`
+(`Buffer.from` for the `ws` extras). Then the burst's parses are timed, one per frame.
+Then the frames are dropped. Each decode returns a new string, so nothing carries over
+between rounds (checked: 20,000 kept decodes of one line grow the heap by a full string
+each on all three engines). A round's time is the sum of its bursts. Warm-up runs the
+same burst rounds.
+
+The burst clock is the cheapest nanosecond clock of each runtime. All tick in 1 ns steps.
+
+| | clock | cost per call | `process.hrtime.bigint()` |
+|---|---|---|---|
+| Node 22 | `performance.now()` | ~40 ns | ~86 ns |
+| Deno 2.9 | `performance.now()` (the global; the `node:perf_hooks` one costs ~138 ns) | ~86 ns | ~234 ns |
+| Bun 1.4 | `Bun.nanoseconds()` | ~36 ns | ~53 ns |
+
+Two reads per burst cost under 0.3% of a 64-event burst (~50–100 µs).
+
+The digest, the retained-heap and kept-objects passes and the allocation tracker run
+untimed, as before.
 
 ## Parsers
 
@@ -84,13 +108,57 @@ That is probably a backlog of native finalizers; it was not investigated.
 
 ## Memory and GC
 
+Deno's alloc bytes and Node's GC counters cannot be read per burst without counting the
+frame strings: decoding allocates them, and their garbage triggers collections. So
+`alloc_bytes_per_event`, `gc_count` and `gc_ms` come from a separate untimed pass after
+timing. It runs as many rounds as were measured of the old tight loop over the preloaded
+frame strings, so it covers the parses only. Each row's `notes` says so. `gc_count` and
+`gc_ms` are every Node `gc` entry (minor, major, incremental, weak-callback) that starts
+inside that pass. They are totals over the pass, not per round.
+
 | | `gc_count` / `gc_ms` | `alloc_bytes_per_event` | `retained_bytes_per_event` |
 |---|---|---|---|
-| Node 22 | `PerformanceObserver` `gc` entries that start inside the measured window | null: V8 12.4 has no cumulative allocation counter | `process.memoryUsage().heapUsed`, children run with `--expose-gc` |
-| Deno 2.9 | null: lists `gc` as supported but delivers no entries | `v8.getHeapStatistics().total_allocated_bytes` delta (V8 15 cumulative counter), V8 heap only: excludes native memory such as the simdjson addon's buffers | as Node, children run with `--v8-flags=--expose-gc` |
+| Node 22 | `PerformanceObserver` `gc` entries that start inside the memory pass | null: V8 12.4 has no cumulative allocation counter | `process.memoryUsage().heapUsed`, children run with `--expose-gc` |
+| Deno 2.9 | null: lists `gc` as supported but delivers no entries | `v8.getHeapStatistics().total_allocated_bytes` delta over the memory pass (V8 15 cumulative counter), V8 heap only: excludes native memory such as the simdjson addon's buffers | as Node, children run with `--v8-flags=--expose-gc` |
 | Bun 1.4 | null: JSC exposes no GC events | null: the `node:v8` shim's `total_allocated_bytes` does not track JS allocation | `bun:jsc` `heapStats().heapSize` after `Bun.gc(true)` |
 
-`allocs_per_event` is always null.
+**Objects kept and created** (`retained_objects_per_event`, `allocs_per_event`, how in
+each row's `objects_note`, which also breaks the kept count down by type):
+
+| | `retained_objects_per_event` | `allocs_per_event` |
+|---|---|---|
+| Node 22, Deno 2.9 | nodes of a V8 heap snapshot (`node:v8` `getHeapSnapshot`, streamed: only the header and the `nodes` array are read) of type object (JS objects and arrays), array (V8 backing stores: elements, out-of-object properties), string, heap number, closure, regexp, symbol, bigint with `self_size > 0`; not code, hidden, object shape (maps), synthetic or native nodes, nor the size-0 `smi number` nodes Deno adds for every small integer | V8 allocation tracker (`node:inspector`, `HeapProfiler.startTrackingHeapObjects` with `trackAllocations`) over one untimed round of the prepared frames, minus an empty tracked round. Only for `json-parse-string`, `simdjson-parse` and (Node) `json-parse-buffer`, null elsewhere |
+| Bun 1.4 | `bun:jsc` `heapStats().objectCount` after `Bun.gc(true)`: every marked JSC cell, butterflies (element and out-of-line property storage) included; a string's characters are a malloc block outside the cell heap | null: JSC has no allocation counter (`objectCount` only counts what the last collection marked) |
+
+Kept objects use every event of the workload, from fresh frames like the retained-bytes
+pass: one throwaway reading, a reading, a pass that parses every event and drops the
+result, a reading, the pass that keeps every result, a reading. The value is the keep
+pass's growth minus the drop pass's growth, per event, so lazily built engine state and
+the readings' own objects cancel. The throwaway reading is there because on Deno the first
+snapshot after a workload change still counted the previous workload's frame strings.
+A full `all` snapshot with every event kept is about 60 MB of JSON and takes about 2 s.
+
+The tracker records every heap allocation, but optimized JS allocates differently: escape
+analysis drops objects and allocation folding turns several objects into one allocation
+(an object literal holding an array counted 1 per call instead of 3). It is exact only
+where the parse allocates from engine C++ code (`JSON.parse`, Node's `Buffer.toString`,
+N-API calls), checked on `{"a":"<long>","n":<int>,"b":[["x","<long>"]]}`: 7.00 per parse
+on both engines. So the JS-implemented parsers (`jsonjoy-decoder`, `streamparser-json`),
+Deno's JS `Buffer` polyfill and the baselines report null.
+
+Checks on `notes` (4.69 tags and 16.1 string values per event):
+
+- `JSON.parse` keeps 1 event object + 5.69 arrays (`tags` and one per tag) + 5.65 backing
+  stores (an empty `tags` shares V8's empty array) + strings. V8 shares empty and
+  one-character strings, which predicts 10.75 strings per event: `simdjson-parse` and
+  `streamparser-json` keep exactly that. `JSON.parse` keeps fewer (Node 9.92, Deno 8.90)
+  because it also internalizes some short values. Node and Deno run V8 without pointer
+  compression, so `created_at` is a Smi, not a heap number.
+- Created minus kept is the garbage: about 0 for `JSON.parse` (22.28 against 22.27 on
+  Node), +1 for `json-parse-buffer` (the decoded string), about +1 for `simdjson-parse`.
+- JSC's `JSON.parse` reuses recently parsed string values, so Bun keeps 6.0 strings per
+  `notes` event, and its 6.69 butterflies are the 5.69 arrays' storage plus the event
+  object's out-of-line property storage (7 properties).
 
 **Retained heap.** After timing, each parser parses every event once more, from a fresh
 frame string per event (as a socket hands them over, so a result that kept its input

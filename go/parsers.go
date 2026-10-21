@@ -33,12 +33,19 @@ import (
 // eventFn parses one line through the same code path and converts the result to an
 // Event for the digest (the conversion is untimed: only used during verification).
 // keepFn is the retained-heap pass (see measureRetained in main.go): it parses every
-// line once more, keeps every result alive and returns the HeapAlloc growth.
+// line once more, keeps every result alive and returns the HeapAlloc and HeapObjects
+// growth.
 type (
 	runFn   func(line []byte) (int64, error)
 	eventFn func(line []byte) (*Event, error)
-	keepFn  func(lines [][]byte) (int64, error)
+	keepFn  func(lines [][]byte) (retained, error)
 )
+
+// retained is what one keep pass leaves alive after a full GC, over all events.
+type retained struct {
+	bytes   int64 // HeapAlloc growth (+ the size of results stored by value)
+	objects int64 // HeapObjects growth (+ 1 per result stored by value)
+}
 
 // impl is what a parser's setup hands the harness. keep is nil when one parse's
 // result is invalidated by the next (a reused parser tree), so retained heap is null.
@@ -59,10 +66,16 @@ type impl struct {
 // buffer alive, and it is counted too. Parsing the preloaded corpus lines instead
 // would make aliasing results look free, because those lines are already allocated.
 // The results slice is allocated before the baseline reading, so it is not counted,
-// but a result stored by value in it (a struct) has its own size added, because the
-// JVM and C++ harnesses count the event object itself too.
+// but a result stored by value in it (a struct) has its own size added, and counts as
+// one object, because the JVM and C++ harnesses count the event object itself too.
+//
+// The object count is MemStats.HeapObjects after the GC minus before. A frame copy that
+// no result points into is freed by that GC, so it is only counted when a result keeps
+// it alive. The runtime's tiny allocator packs pointer-free allocations under 16 bytes
+// (short strings) into shared 16-byte blocks, and HeapObjects counts the blocks, not
+// the allocations in them, so short strings can count for less than one object each.
 func keepOf[T any](parse func([]byte) (T, error)) keepFn {
-	return func(lines [][]byte) (int64, error) {
+	return func(lines [][]byte) (retained, error) {
 		res := make([]T, len(lines))
 		var before, after runtime.MemStats
 		runtime.GC()
@@ -72,19 +85,23 @@ func keepOf[T any](parse func([]byte) (T, error)) keepFn {
 			copy(frame, l)
 			v, err := parse(frame)
 			if err != nil {
-				return 0, fmt.Errorf("event %d: %w", i, err)
+				return retained{}, fmt.Errorf("event %d: %w", i, err)
 			}
 			res[i] = v
 		}
 		runtime.GC()
 		runtime.ReadMemStats(&after)
 		runtime.KeepAlive(res)
-		var inline int64
+		var inlineBytes, inlineObjects int64
 		if reflect.TypeOf((*T)(nil)).Elem().Kind() == reflect.Struct {
 			var zero T
-			inline = int64(unsafe.Sizeof(zero)) * int64(len(lines))
+			inlineBytes = int64(unsafe.Sizeof(zero)) * int64(len(lines))
+			inlineObjects = int64(len(lines))
 		}
-		return int64(after.HeapAlloc) - int64(before.HeapAlloc) + inline, nil
+		return retained{
+			bytes:   int64(after.HeapAlloc) - int64(before.HeapAlloc) + inlineBytes,
+			objects: int64(after.HeapObjects) - int64(before.HeapObjects) + inlineObjects,
+		}, nil
 	}
 }
 
@@ -95,6 +112,9 @@ type parserDef struct {
 	Mode    string
 	Input   string
 	Notes   string
+	// ObjectsNote becomes the row's objects_note: how to read its object counts when
+	// that isn't obvious. Empty means null.
+	ObjectsNote string
 	// setup builds fresh per-run state (reused parser objects) and returns the closures.
 	setup func() (impl, error)
 }
@@ -144,7 +164,8 @@ var parsers = []parserDef{
 	},
 	{
 		ID: "stdlib-map", Library: "encoding/json", Module: "std", Mode: "dom", Input: "bytes",
-		Notes: "json.Unmarshal into map[string]any (numbers as float64)",
+		Notes:       "json.Unmarshal into map[string]any (numbers as float64)",
+		ObjectsNote: "A map[string]any is a map header plus its group array; every key is its own string; a string value in an any is 2 objects (the boxed string header and its bytes), a float64 is boxed, and a []any is 2 (the boxed slice header and its backing array)",
 		setup: func() (impl, error) {
 			parse := func(l []byte) (map[string]any, error) {
 				var m map[string]any
@@ -172,14 +193,16 @@ var parsers = []parserDef{
 	},
 	{
 		ID: "jsonv2-typed", Library: "go-json-experiment/json", Module: "github.com/go-json-experiment/json", Mode: "typed", Input: "bytes",
-		Notes: "json/v2 proposal (experimental module; Go 1.25 ships it as GOEXPERIMENT=jsonv2). Last commit whose go.mod allows Go 1.24; newer ones need Go 1.25/1.26",
+		Notes:       "json/v2 proposal (experimental module; Go 1.25 ships it as GOEXPERIMENT=jsonv2). Last commit whose go.mod allows Go 1.24; newer ones need Go 1.25/1.26",
+		ObjectsNote: "json/v2 interns strings of 2 to 256 bytes in a 256-entry cache on its pooled decoder, so a string repeated across events (the same pubkey, a referenced id, a relay URL, \"root\") is often one object shared by every event that has it",
 		setup: func() (impl, error) {
 			return typedEvent(func(l []byte, ev *Event) error { return jsonv2.Unmarshal(l, ev) })
 		},
 	},
 	{
 		ID: "goccy-typed", Library: "goccy/go-json", Module: "github.com/goccy/go-json", Mode: "typed", Input: "bytes-copy",
-		Notes: "gojson.Unmarshal into Event: copies the frame into a pooled, NUL-terminated context buffer inside the call; decoded strings are copied out of it",
+		Notes:       "gojson.Unmarshal into Event: copies the frame into a pooled, NUL-terminated context buffer inside the call; decoded strings are copied out of it",
+		ObjectsNote: "Strings of up to 512 bytes are copied into a per-context arena of chunks up to 16 KiB that many events share, so they add almost no objects (a kept event keeps its arena chunk alive, shared with its neighbours); a retained event is the Event, the tags slice and one slice per tag",
 		setup: func() (impl, error) {
 			return typedEvent(func(l []byte, ev *Event) error { return gojson.Unmarshal(l, ev) })
 		},
@@ -202,7 +225,8 @@ var parsers = []parserDef{
 	},
 	{
 		ID: "sonic-typed", Library: "bytedance/sonic", Module: "github.com/bytedance/sonic", Mode: "typed", Input: "bytes→string",
-		Notes: "sonic.ConfigDefault.Unmarshal into Event (amd64 JIT). Unmarshal([]byte) is UnmarshalFromString(string(frame)): one frame-sized string copy per parse, inside the loop. Escape-free strings are substrings of that copy (CopyString=false), so a kept Event keeps the whole frame copy alive; retained heap counts it",
+		Notes:       "sonic.ConfigDefault.Unmarshal into Event (amd64 JIT). Unmarshal([]byte) is UnmarshalFromString(string(frame)): one frame-sized string copy per parse, inside the loop. Escape-free strings are substrings of that copy (CopyString=false), so a kept Event keeps the whole frame copy alive; retained heap counts it",
+		ObjectsNote: "Escape-free strings are substrings of the one string(frame) copy, which counts as 1 object however many strings point into it; strings with escapes (content with a newline, say) are decoded into allocations of their own",
 		setup: func() (impl, error) {
 			api := sonic.ConfigDefault
 			return typedEvent(func(l []byte, ev *Event) error { return api.Unmarshal(l, ev) })
@@ -218,7 +242,8 @@ var parsers = []parserDef{
 	},
 	{
 		ID: "sonic-ast", Library: "bytedance/sonic", Module: "github.com/bytedance/sonic", Mode: "dom", Input: "bytes→string",
-		Notes: "ast.NewRaw(string(frame)) + LoadAll() (full tree, not lazy); the []byte->string copy is timed, and the tree points into that string, so a kept tree keeps the frame copy alive",
+		Notes:       "ast.NewRaw(string(frame)) + LoadAll() (full tree, not lazy); the []byte->string copy is timed, and the tree points into that string, so a kept tree keeps the frame copy alive",
+		ObjectsNote: "The ast.Node is stored by value in the results slice and counts as 1 object (as its size counts in the bytes); the tree's nodes live in a few node arrays and its strings are substrings of the one string(frame) copy, which counts once",
 		setup: func() (impl, error) {
 			parse := func(l []byte) (ast.Node, error) {
 				n := ast.NewRaw(string(l))
@@ -267,7 +292,8 @@ var parsers = []parserDef{
 	},
 	{
 		ID: "segmentio-borrowed", Library: "segmentio/encoding/json", Module: "github.com/segmentio/encoding", Mode: "borrowed", Input: "bytes",
-		Notes: "json.Parse(frame, &ev, json.ZeroCopy): escape-free strings alias the frame's []byte, so a kept Event keeps the whole frame buffer alive (and is corrupted if the socket reuses that buffer). Retained heap parses a fresh copy of each frame, so the pinned frames are counted",
+		Notes:       "json.Parse(frame, &ev, json.ZeroCopy): escape-free strings alias the frame's []byte, so a kept Event keeps the whole frame buffer alive (and is corrupted if the socket reuses that buffer). Retained heap parses a fresh copy of each frame, so the pinned frames are counted",
+		ObjectsNote: "Escape-free strings alias the frame copy, which counts as 1 object however many strings point into it; strings with escapes get allocations of their own",
 		setup: func() (impl, error) {
 			return typedEvent(func(l []byte, ev *Event) error {
 				_, err := segjson.Parse(l, ev, segjson.ZeroCopy)
@@ -294,7 +320,8 @@ var parsers = []parserDef{
 	},
 	{
 		ID: "fastjson-dom", Library: "valyala/fastjson", Module: "github.com/valyala/fastjson", Mode: "dom", Input: "bytes-copy",
-		Notes: "one reused fastjson.Parser: ParseBytes copies the frame into the Parser's own reused buffer and the tree points into it; strings are unescaped lazily, only when read. The tree is only valid until the next Parse, so retained heap is null",
+		Notes:       "one reused fastjson.Parser: ParseBytes copies the frame into the Parser's own reused buffer and the tree points into it; strings are unescaped lazily, only when read. The tree is only valid until the next Parse, so retained heap is null",
+		ObjectsNote: "No retained count: the tree lives in the reused Parser and is overwritten by the next parse. allocs_per_event is 0 once the Parser's buffers have grown to fit",
 		setup: func() (impl, error) {
 			var p fastjson.Parser
 			run := func(l []byte) (int64, error) {
@@ -335,13 +362,15 @@ var parsers = []parserDef{
 	},
 	{
 		ID: "simdjson-go-dom", Library: "minio/simdjson-go", Module: "github.com/minio/simdjson-go", Mode: "dom", Input: "bytes",
-		Notes: "simdjson.Parse(frame, reused *ParsedJson) builds the tape, which points into the frame (pj.Message); kind via FindKey, tag count via Array iteration. The ParsedJson is reused by the next Parse, so retained heap is null. Needs AVX2+CLMUL",
-		setup: setupSimdjson,
+		Notes:       "simdjson.Parse(frame, reused *ParsedJson) builds the tape, which points into the frame (pj.Message); kind via FindKey, tag count via Array iteration. The ParsedJson is reused by the next Parse, so retained heap is null. Needs AVX2+CLMUL",
+		ObjectsNote: "No retained count: the tape lives in the reused ParsedJson and is overwritten by the next parse",
+		setup:       setupSimdjson,
 	},
 	{
 		ID: "gjson-typed", Library: "tidwall/gjson", Module: "github.com/tidwall/gjson", Mode: "typed", Input: "bytes",
-		Notes: "gjson.GetBytes once per field (7 scans of the frame; GetBytes copies each result out of the frame), tags via Result.ForEach. The tag strings are substrings of one copy of the whole tags JSON text, which a kept Event keeps alive",
-		setup: setupGjson,
+		Notes:       "gjson.GetBytes once per field (7 scans of the frame; GetBytes copies each result out of the frame), tags via Result.ForEach. The tag strings are substrings of one copy of the whole tags JSON text, which a kept Event keeps alive",
+		ObjectsNote: "id, pubkey, content and sig are one copy each; the tag strings are substrings of one copy of the whole tags text, which counts as 1 object",
+		setup:       setupGjson,
 	},
 	{
 		ID: "jx-typed", Library: "go-faster/jx", Module: "github.com/go-faster/jx", Mode: "typed", Input: "bytes",
@@ -350,7 +379,8 @@ var parsers = []parserDef{
 	},
 	{
 		ID: "ojg-dom", Library: "ohler55/ojg", Module: "github.com/ohler55/ojg", Mode: "dom", Input: "bytes",
-		Notes: "reused oj.Parser (Reuse off) -> map[string]any with int64 numbers. Library bug: oj decodes each \\uXXXX escape on its own, so a surrogate pair (escaped emoji) becomes two U+FFFD; digest fails on every workload with escaped emoji",
+		Notes:       "reused oj.Parser (Reuse off) -> map[string]any with int64 numbers. Library bug: oj decodes each \\uXXXX escape on its own, so a surrogate pair (escaped emoji) becomes two U+FFFD; digest fails on every workload with escaped emoji",
+		ObjectsNote: "A map[string]any is a map header plus its group array; every key is its own string; a string value in an any is 2 objects (the boxed string header and its bytes), an int64 is boxed unless below 256, and a []any is 2 (the boxed slice header and its backing array)",
 		setup: func() (impl, error) {
 			p := &oj.Parser{}
 			parse := func(l []byte) (map[string]any, error) {
@@ -406,7 +436,8 @@ var parsers = []parserDef{
 	},
 	{
 		ID: "fiatjaf-nostr-typed", Library: "fiatjaf.com/nostr", Module: "fiatjaf.com/nostr", Mode: "typed", Input: "bytes",
-		Notes: "nostr.Event.UnmarshalJSON: hand-tuned easyjson lexer that hex-decodes id/pubkey/sig straight into [32]byte/[64]byte arrays (no strings for them), Kind is uint16. An all-zero array means absent in this library (its encoder omits zero id/pubkey/sig; its decoder leaves them zero unless the hex is exactly 64/128 chars), so the digest glue maps zero back to an empty string (the corpus has unsigned rumors whose sig is empty). Pinned to the last commit whose go.mod allows Go 1.24 (decoder identical to HEAD except unknown-field skipping)",
+		Notes:       "nostr.Event.UnmarshalJSON: hand-tuned easyjson lexer that hex-decodes id/pubkey/sig straight into [32]byte/[64]byte arrays (no strings for them), Kind is uint16. An all-zero array means absent in this library (its encoder omits zero id/pubkey/sig; its decoder leaves them zero unless the hex is exactly 64/128 chars), so the digest glue maps zero back to an empty string (the corpus has unsigned rumors whose sig is empty). Pinned to the last commit whose go.mod allows Go 1.24 (decoder identical to HEAD except unknown-field skipping)",
+		ObjectsNote: "id, pubkey and sig are [32]byte/[64]byte arrays inside the Event, not strings, so a retained event has 3 objects fewer than one with string fields",
 		setup: func() (impl, error) {
 			return typedOf(func(l []byte) (*fnostr.Event, error) {
 				ev := new(fnostr.Event)

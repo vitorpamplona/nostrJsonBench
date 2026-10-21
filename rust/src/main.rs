@@ -1,5 +1,7 @@
 //! nostrJsonBench Rust harness. Follows HARNESS.md: verify each parser against the
 //! manifest digest, then time full rounds over each workload and count allocations.
+//! A round arrives in bursts of `--burst` frames: each burst's frames are built fresh
+//! (untimed), parsed (timed), then dropped.
 
 mod alloc;
 mod dom;
@@ -29,13 +31,15 @@ struct Args {
     warmup_ms: u64,
     min_time_ms: u64,
     min_rounds: usize,
+    burst: usize,
     list: bool,
 }
 
 fn usage() -> ! {
     eprintln!(
         "usage: jsonbench-rust [--corpus DIR] [--out FILE] [--workloads a,b] [--parsers x,y]\n\
-         \x20                     [--warmup-ms N] [--min-time-ms N] [--min-rounds N] [--quick] [--list]"
+         \x20                     [--warmup-ms N] [--min-time-ms N] [--min-rounds N] [--burst N]\n\
+         \x20                     [--quick] [--list]"
     );
     std::process::exit(2)
 }
@@ -49,6 +53,7 @@ fn parse_args() -> Args {
         warmup_ms: 1000,
         min_time_ms: 2000,
         min_rounds: 5,
+        burst: 64,
         list: false,
     };
     let mut it = std::env::args().skip(1);
@@ -69,6 +74,9 @@ fn parse_args() -> Args {
             "--warmup-ms" => a.warmup_ms = val().parse().unwrap_or_else(|_| usage()),
             "--min-time-ms" => a.min_time_ms = val().parse().unwrap_or_else(|_| usage()),
             "--min-rounds" => a.min_rounds = val().parse().unwrap_or_else(|_| usage()),
+            "--burst" => {
+                a.burst = val().parse().ok().filter(|&n| n > 0).unwrap_or_else(|| usage());
+            }
             "--quick" => {
                 a.warmup_ms = 200;
                 a.min_time_ms = 300;
@@ -85,9 +93,10 @@ fn parse_args() -> Args {
     a
 }
 
-/// Loads a workload as WebSocket text frames: every line becomes a `String` (UTF-8 validated
-/// here, once and untimed, as the socket already did), leaked so parsers and kept results can
-/// borrow it for `'static` (a few tens of MB for the whole run).
+/// Loads a workload's lines: every line becomes a `String` (UTF-8 validated here, once and
+/// untimed), leaked so parsers and kept results can borrow it for `'static` (a few tens of MB
+/// for the whole run). Verify, the digest and the retained pass parse these; timed rounds
+/// parse fresh copies built per burst (`Bursts`).
 fn load_lines(path: &Path) -> Vec<Line> {
     let data = std::fs::read(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
     let mut lines = Vec::new();
@@ -174,28 +183,80 @@ struct Timing {
     allocs: u64,
 }
 
+/// Builds each burst's frames the way the WebSocket client does, and keeps the buffers
+/// (the frame list, not the frames) across bursts so only the frames are new each time.
+struct Bursts {
+    size: usize,
+    frames: Vec<String>,
+    views: Vec<Line>,
+}
+
+impl Bursts {
+    fn new(size: usize) -> Self {
+        Bursts {
+            size,
+            frames: Vec::with_capacity(size),
+            views: Vec::with_capacity(size),
+        }
+    }
+
+    /// One round: per burst, build the frames (untimed), time `Parser::round` over them, drop
+    /// them. Returns the sink and the summed burst time; `mem`, when given, accumulates the
+    /// allocator's (bytes, count) over the timed parts only, so the frame copies are not in it.
+    fn round(&mut self, p: &mut dyn parsers::Parser, lines: &[Line], mut mem: Option<&mut (u64, u64)>) -> (u64, u64) {
+        let (mut sink, mut ns) = (0u64, 0u64);
+        for chunk in lines.chunks(self.size) {
+            // Untimed: fresh frames, as tungstenite builds a `Message::Text` from the socket's bytes.
+            for l in chunk {
+                let frame = String::from_utf8(l.b().to_vec()).expect("validated at load");
+                self.frames.push(frame);
+            }
+            // SAFETY: the views borrow `self.frames`, which is not touched until both are cleared
+            // below, after the last use. `Parser::round` returns a number, and no parser keeps a
+            // borrow of its input past `fold` (jiter's `JsonValueScratch<'static>` hands its
+            // stacks over to the result, or clears them on error), so nothing outlives the frames.
+            self.views.extend(self.frames.iter().map(|f| Line {
+                s: unsafe { &*(f.as_str() as *const str) },
+            }));
+            let (b0, c0) = alloc::snapshot();
+            let t = Instant::now();
+            sink = sink.wrapping_add(p.round(&self.views));
+            ns += t.elapsed().as_nanos() as u64;
+            let (b1, c1) = alloc::snapshot();
+            if let Some(m) = mem.as_deref_mut() {
+                m.0 += b1 - b0;
+                m.1 += c1 - c0;
+            }
+            // The frames become garbage, as the socket's do after the handler returns.
+            self.views.clear();
+            self.frames.clear();
+        }
+        (sink, ns)
+    }
+}
+
 fn measure(p: &mut dyn parsers::Parser, lines: &[Line], a: &Args) -> Timing {
+    let mut bursts = Bursts::new(a.burst);
     let mut sink = 0u64;
     let warm = Duration::from_millis(a.warmup_ms);
     let start = Instant::now();
     while start.elapsed() < warm {
-        sink = sink.wrapping_add(p.round(lines));
+        sink = sink.wrapping_add(bursts.round(p, lines, None).0);
     }
     let min_time = Duration::from_millis(a.min_time_ms);
     let mut rounds = Vec::new();
-    let (b0, c0) = alloc::snapshot();
+    let mut mem = (0u64, 0u64);
     let start = Instant::now();
     while rounds.len() < MAX_ROUNDS && (rounds.len() < a.min_rounds || start.elapsed() < min_time) {
-        let t = Instant::now();
-        sink = sink.wrapping_add(p.round(lines));
-        rounds.push(t.elapsed().as_nanos() as u64);
+        let (s, ns) = bursts.round(p, lines, Some(&mut mem));
+        sink = sink.wrapping_add(s);
+        rounds.push(ns);
     }
-    let (b1, c1) = alloc::snapshot();
     std::hint::black_box(sink);
     Timing {
         rounds,
-        alloc_bytes: b1 - b0,
-        allocs: c1 - c0,
+        alloc_bytes: mem.0,
+        allocs: mem.1,
     }
 }
 
@@ -256,7 +317,7 @@ fn main() {
         "language": "Rust",
         "runtime": runtime,
         "host": host(),
-        "settings": { "warmup_ms": a.warmup_ms, "min_time_ms": a.min_time_ms, "min_rounds": a.min_rounds },
+        "settings": { "warmup_ms": a.warmup_ms, "min_time_ms": a.min_time_ms, "min_rounds": a.min_rounds, "burst": a.burst },
         "corpus_fingerprint": manifest["fingerprint"],
         "results": [],
     });
@@ -297,7 +358,8 @@ fn main() {
                 "ns_per_event": null, "mb_per_s": null, "events_per_s": null,
                 "alloc_bytes_per_event": null, "allocs_per_event": null,
                 "gc_count": null, "gc_ms": null,
-                "retained_bytes_per_event": null,
+                "retained_bytes_per_event": null, "retained_objects_per_event": null,
+                "objects_note": objects_note(m),
             });
             if v.ok {
                 let t = measure(p.as_mut(), &lines, &a);
@@ -328,15 +390,23 @@ fn main() {
                 );
                 o.insert("allocs_per_event".into(), json!(round2(t.allocs as f64 / parsed)));
                 let retained = p.retained(&lines);
-                o.insert("retained_bytes_per_event".into(), json!(retained.map(round2)));
+                o.insert(
+                    "retained_bytes_per_event".into(),
+                    json!(retained.map(|r| round2(r.bytes))),
+                );
+                o.insert(
+                    "retained_objects_per_event".into(),
+                    json!(retained.map(|r| round2(r.objects))),
+                );
                 eprintln!(
-                    "{name:<10} {:<28} {:>9.1} MB/s {:>8.1} ns/ev {:>8.1} B/ev {:>6.2} allocs/ev {:>8} kept B/ev  ({n} rounds)",
+                    "{name:<10} {:<28} {:>9.1} MB/s {:>8.1} ns/ev {:>8.1} B/ev {:>6.2} allocs/ev {:>8} kept B/ev {:>6} kept objs/ev  ({n} rounds)",
                     m.id,
                     bytes as f64 / (median / 1e9) / 1e6,
                     median / events as f64,
                     t.alloc_bytes as f64 / parsed,
                     t.allocs as f64 / parsed,
-                    retained.map_or("-".to_string(), |r| format!("{r:.1}"))
+                    retained.map_or("-".to_string(), |r| format!("{:.1}", r.bytes)),
+                    retained.map_or("-".to_string(), |r| format!("{:.2}", r.objects))
                 );
             } else {
                 eprintln!(
@@ -351,6 +421,20 @@ fn main() {
     }
     write_out(&a.out, &doc);
     eprintln!("wrote {}", a.out.display());
+}
+
+/// How `allocs_per_event` and `retained_objects_per_event` were counted for this row.
+fn objects_note(m: &parsers::Meta) -> String {
+    let mut s = String::from(
+        "heap blocks from the counting #[global_allocator]: every alloc is one object, a realloc \
+         that moves is one new allocation and one that grows in place is none; retained objects \
+         count only the blocks a kept result owns, not the result stored inline in the keep Vec \
+         (an empty String or Vec owns no block)",
+    );
+    if m.library == "simdjson-rust" {
+        s.push_str("; simdjson-rust's C++ allocations (its parser buffers) are not counted");
+    }
+    s
 }
 
 fn round2(x: f64) -> f64 {

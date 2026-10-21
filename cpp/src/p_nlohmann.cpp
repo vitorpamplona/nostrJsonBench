@@ -31,9 +31,9 @@ class DomRunner final : public Runner {
  public:
   explicit DomRunner(const Lines& l) : lines_(l) {}
   void digest(size_t i, DigestWriter& d) override { digest_dom(json::parse(lines_[i]), d); }
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) {
+    for (const auto& l : frames) {
       const json j = json::parse(l);
       sink += j.at("kind").get<uint64_t>() + j.at("tags").size();
     }
@@ -54,9 +54,9 @@ class GetRunner final : public Runner {
     Event e = json::parse(lines_[i]).get<Event>();
     digest_event(d, e);
   }
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) {
+    for (const auto& l : frames) {
       Event e = json::parse(l).get<Event>();
       sink += e.kind + e.tags.size() + e.content.size();
     }
@@ -145,9 +145,9 @@ class SaxRunner final : public Runner {
     parse(lines_[i], e);
     digest_event(d, e);
   }
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) {
+    for (const auto& l : frames) {
       Event e;
       parse(l, e);
       sink += e.kind + e.tags.size() + e.content.size();

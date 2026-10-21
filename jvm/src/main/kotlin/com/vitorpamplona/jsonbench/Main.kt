@@ -32,6 +32,9 @@ import kotlin.system.exitProcess
  * verifies and times that one parser on every selected workload and writes its result
  * rows to a temp file; the parent merges them into one result file. One JVM per parser
  * keeps one library's JIT profile, loaded classes and heap from taxing the next.
+ * The JIT can settle on a fast or a slow compilation of the same parser from one JVM to
+ * the next, so the parent times each parser in `--forks` JVMs (default 3) and keeps, per
+ * workload, the row of the fork with the median ns/event, as JMH does with forks.
  */
 class Args(
     var corpus: String = ".corpus",
@@ -41,11 +44,16 @@ class Args(
     var warmupMs: Long = 1000,
     var minTimeMs: Long = 2000,
     var minRounds: Int = 5,
+    var burst: Int = 64,
+    /** Timed child JVMs per parser; each row reports the fork with the median ns/event. */
+    var forks: Int = 3,
     var list: Boolean = false,
     var childParser: String? = null,
     var childOut: String? = null,
+    /** In a child: count allocations (in the JVM started with the agent) instead of timing. */
+    var childCount: Boolean = false,
 ) {
-    fun settings() = Settings(warmupMs, minTimeMs, minRounds)
+    fun settings() = Settings(warmupMs, minTimeMs, minRounds, burst)
 
     companion object {
         fun parse(argv: Array<String>): Args {
@@ -65,14 +73,18 @@ class Args(
                     "--warmup-ms" -> a.warmupMs = next().toLong()
                     "--min-time-ms" -> a.minTimeMs = next().toLong()
                     "--min-rounds" -> a.minRounds = next().toInt()
+                    "--burst" -> a.burst = next().toInt().also { if (it < 1) usage("--burst must be at least 1") }
+                    "--forks" -> a.forks = next().toInt().also { if (it < 1) usage("--forks must be at least 1") }
                     "--quick" -> {
                         a.warmupMs = 200
                         a.minTimeMs = 300
                         a.minRounds = 3
+                        a.forks = 1
                     }
                     "--list" -> a.list = true
                     "--child-parser" -> a.childParser = next()
                     "--child-out" -> a.childOut = next()
+                    "--child-count" -> a.childCount = true
                     "-h", "--help" -> usage(null)
                     else -> usage("unknown argument: $arg")
                 }
@@ -86,7 +98,8 @@ class Args(
             System.err.println(
                 """
                 usage: jsonbench [--corpus DIR] [--out FILE] [--workloads a,b] [--parsers x,y]
-                                 [--warmup-ms N] [--min-time-ms N] [--min-rounds N] [--quick] [--list]
+                                 [--warmup-ms N] [--min-time-ms N] [--min-rounds N] [--burst N]
+                                 [--forks N] [--quick] [--list]
                 """.trimIndent(),
             )
             exitProcess(if (error == null) 0 else 2)
@@ -139,7 +152,9 @@ fun main(argv: Array<String>) {
         PARSERS.forEach { println(it.id) }
         return
     }
-    if (args.childParser != null) {
+    if (args.childParser != null && args.childCount) {
+        CountChild.run(args)
+    } else if (args.childParser != null) {
         Child.run(args)
     } else {
         Parent.run(args)
@@ -209,13 +224,13 @@ object Child {
         var m: Measurement? = null
         if (v.errors == 0) {
             try {
-                m = Runner.measure(parser, inputs, settings)
+                m = Runner.measure(parser, lines, inputs, settings)
             } catch (t: Throwable) {
                 error = "while timing: ${t.javaClass.name}: ${t.message?.take(300)}"
             }
         }
 
-        var retained: Long? = null
+        var retained: Retained? = null
         if (v.errors == 0) {
             try {
                 retained = Runner.retained(parser, inputs)
@@ -231,7 +246,7 @@ object Child {
         row["license"] = spec.license
         row["mode"] = spec.mode
         row["input"] = spec.input
-        row["notes"] = spec.notes
+        row["notes"] = if (m == null) spec.notes else listOf(spec.notes, GC_NOTE).filter { it.isNotBlank() }.joinToString(" ")
         row["variant"] = spec.variant
         row["workload"] = w.name
         row["events"] = w.events
@@ -255,10 +270,14 @@ object Child {
             row["events_per_s"] = null
             row["alloc_bytes_per_event"] = null
         }
+        // Filled in by the parent from the separate counting JVM (CountChild).
         row["allocs_per_event"] = null
         row["gc_count"] = m?.gcCount
         row["gc_ms"] = m?.gcMs
-        row["retained_bytes_per_event"] = retained?.let { it / w.events.toDouble() }
+        row["retained_bytes_per_event"] = retained?.let { it.bytes / w.events.toDouble() }
+        row["retained_objects_per_event"] = retained?.totalObjects?.let { it / w.events.toDouble() }
+        row["retained_top_classes"] = retained?.topClasses(w.events)
+        row["objects_note"] = null
 
         val status =
             when (digestOk) {
@@ -270,13 +289,14 @@ object Child {
             System.err.println(
                 String.format(
                     java.util.Locale.ROOT,
-                    "  %-26s %-10s %9.1f MB/s %10.0f ns/ev %9.0f B/ev %7.0f kept B/ev  %4d rounds  gc %d/%dms  %s",
+                    "  %-26s %-10s %9.1f MB/s %10.0f ns/ev %9.0f B/ev %7.0f kept B/ev %5.1f kept obj/ev  %4d rounds  gc %d/%dms  %s",
                     spec.id,
                     w.name,
                     row["mb_per_s"] as Double,
                     row["ns_per_event"] as Double,
                     (row["alloc_bytes_per_event"] as Double?) ?: Double.NaN,
                     (row["retained_bytes_per_event"] as Double?) ?: Double.NaN,
+                    (row["retained_objects_per_event"] as Double?) ?: Double.NaN,
                     m.rounds,
                     m.gcCount ?: -1,
                     m.gcMs ?: -1,
@@ -287,6 +307,59 @@ object Child {
             System.err.println("  ${spec.id.padEnd(26)} ${w.name.padEnd(10)} not timed  $status")
         }
         return row
+    }
+}
+
+/** Appended to every row's notes: where gc_count / gc_ms come from (HARNESS.md "Arrival"). */
+const val GC_NOTE =
+    "gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over " +
+        "preloaded Strings (no frames built), GarbageCollectorMXBean deltas."
+
+/** What every counted row says about how its object counts were taken (HARNESS.md "objects_note"). */
+val OBJECTS_NOTE =
+    "allocs_per_event: bytecode-level count (java-allocation-instrumenter ${Versions["java-allocation-instrumenter"]} " +
+        "agent, separate untimed JVM, parse thread only, fewest of ${AllocAgent.COUNTED_PASSES} passes after " +
+        "${AllocAgent.WARMUP_PASSES} warm-up passes; Strings counted in String's constructors), before JIT escape " +
+        "analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live " +
+        "instances added, from GC.class_histogram before/after keeping every result."
+
+/**
+ * The allocation-counting child: runs in a JVM started with the agent (see [AllocCount]),
+ * after and apart from the timed child, so instrumentation never touches a timing. Writes
+ * `{workload: allocs_per_event}`; a workload whose parse throws is left out.
+ */
+object CountChild {
+    fun run(args: Args) {
+        val spec = PARSERS.firstOrNull { it.id == args.childParser } ?: Args.usage("unknown parser ${args.childParser}")
+        if (!AllocAgent.agentLoaded()) {
+            System.err.println("jsonbench: --child-count needs -javaagent:java-allocation-instrumenter.jar")
+            exitProcess(2)
+        }
+        val corpusDir = File(args.corpus)
+        val manifest = Manifest.load(corpusDir)
+        val workloads = selectWorkloads(manifest, args)
+        val parser = spec.create()
+        val out = LinkedHashMap<String, Any?>()
+        for (w in workloads) count(spec, parser, w, corpusDir)?.let { out[w.name] = it }
+        File(args.childOut!!).writeText(MiniJson.write(out).toString())
+        System.err.println("    (sink ${Runner.blackhole})")
+    }
+
+    private fun <I : Any> count(
+        spec: ParserSpec,
+        parser: BenchParser<I>,
+        w: Workload,
+        corpusDir: File,
+    ): Double? {
+        val inputs = parser.prepareAll(readLines(File(corpusDir, w.file)))
+        return try {
+            AllocCount.perEvent(parser, inputs).also {
+                System.err.println(String.format(java.util.Locale.ROOT, "  %-26s %-10s %9.1f objects/ev created (bytecode count)", spec.id, w.name, it))
+            }
+        } catch (t: Throwable) {
+            System.err.println("  ${spec.id.padEnd(26)} ${w.name.padEnd(10)} allocations not counted: ${t.javaClass.name}: ${t.message?.take(300)}")
+            null
+        }
     }
 }
 
@@ -328,36 +401,37 @@ object Parent {
                 "GC $gc, ${shownArgs.joinToString(" ")}, one JVM per parser, Quartz ${Versions["quartz"]}"
 
         System.err.println("jsonbench (jvm): ${specs.size} parsers x ${workloads.size} workloads; $runtimeString")
+        val agent = AllocAgent.agentJar()
+        if (agent == null) {
+            System.err.println("jsonbench: allocation agent not found (agent/ next to lib/, or -Djsonbench.allocAgent); allocs_per_event stays null")
+        }
 
         val results = ArrayList<Any?>()
         for (spec in specs) {
             System.err.println("== ${spec.id}")
-            val tmp = File.createTempFile("jsonbench-${spec.id}-", ".json")
-            try {
-                val cmd = ArrayList<String>()
-                cmd += java
-                cmd += jvmArgs
-                cmd += listOf("-cp", classpath, "com.vitorpamplona.jsonbench.MainKt")
-                cmd += listOf("--child-parser", spec.id, "--child-out", tmp.path, "--corpus", corpusDir.path)
-                cmd += listOf("--workloads", workloads.joinToString(",") { it.name })
-                cmd += listOf("--warmup-ms", args.warmupMs.toString(), "--min-time-ms", args.minTimeMs.toString())
-                cmd += listOf("--min-rounds", args.minRounds.toString())
-                val code =
-                    ProcessBuilder(cmd)
-                        .redirectOutput(ProcessBuilder.Redirect.INHERIT)
-                        .redirectError(ProcessBuilder.Redirect.INHERIT)
-                        .start()
-                        .waitFor()
-                val rows = if (code == 0 && tmp.length() > 0) MiniJson.parse(tmp.readText()) as? List<*> else null
-                if (rows != null) {
-                    results.addAll(rows)
-                } else {
-                    System.err.println("  child JVM for ${spec.id} exited with code $code")
-                    workloads.forEach { results.add(failedRow(spec, it, "child JVM exited with code $code")) }
+            val forks = ArrayList<List<*>>()
+            var failure: Int? = null
+            for (f in 1..args.forks) {
+                if (args.forks > 1) System.err.println("  fork $f/${args.forks}")
+                val (code, rows) = timedChild(java, jvmArgs, classpath, spec, workloads, corpusDir, args)
+                if (rows == null) {
+                    failure = code
+                    break
                 }
-            } finally {
-                if (!tmp.delete() && tmp.exists()) System.err.println("  could not delete $tmp")
+                forks += rows
             }
+            if (failure != null) {
+                System.err.println("  child JVM for ${spec.id} exited with code $failure")
+                workloads.forEach { results.add(failedRow(spec, it, "child JVM exited with code $failure")) }
+                continue
+            }
+            val rows = medianFork(forks)
+            if (agent != null) {
+                // A separate, untimed JVM with the agent: counting never runs where timing does.
+                val counts = countAllocations(java, jvmArgs + AllocAgent.childJvmArgs(agent), classpath, spec, workloads, corpusDir)
+                mergeCounts(rows, counts)
+            }
+            results.addAll(rows)
         }
 
         val out = LinkedHashMap<String, Any?>()
@@ -380,7 +454,13 @@ object Parent {
                 "os" to "${System.getProperty("os.name")} ${System.getProperty("os.version")}",
             )
         out["settings"] =
-            linkedMapOf("warmup_ms" to args.warmupMs, "min_time_ms" to args.minTimeMs, "min_rounds" to args.minRounds)
+            linkedMapOf(
+                "warmup_ms" to args.warmupMs,
+                "min_time_ms" to args.minTimeMs,
+                "min_rounds" to args.minRounds,
+                "burst" to args.burst,
+                "forks" to args.forks,
+            )
         out["corpus_fingerprint"] = manifest.fingerprint
         out["results"] = results
 
@@ -388,6 +468,109 @@ object Parent {
         outFile.absoluteFile.parentFile?.let { if (!it.isDirectory && !it.mkdirs()) error("could not create $it") }
         outFile.writeText(MiniJson.write(out).append('\n').toString())
         System.err.println("wrote ${outFile.path}")
+    }
+
+    /** Runs one timed [Child] JVM for [spec]; returns its exit code and rows (null when it failed). */
+    private fun timedChild(
+        java: String,
+        jvmArgs: List<String>,
+        classpath: String,
+        spec: ParserSpec,
+        workloads: List<Workload>,
+        corpusDir: File,
+        args: Args,
+    ): Pair<Int, List<*>?> {
+        val tmp = File.createTempFile("jsonbench-${spec.id}-", ".json")
+        try {
+            val cmd = ArrayList<String>()
+            cmd += java
+            cmd += jvmArgs
+            cmd += listOf("-cp", classpath, "com.vitorpamplona.jsonbench.MainKt")
+            cmd += listOf("--child-parser", spec.id, "--child-out", tmp.path, "--corpus", corpusDir.path)
+            cmd += listOf("--workloads", workloads.joinToString(",") { it.name })
+            cmd += listOf("--warmup-ms", args.warmupMs.toString(), "--min-time-ms", args.minTimeMs.toString())
+            cmd += listOf("--min-rounds", args.minRounds.toString(), "--burst", args.burst.toString())
+            val code =
+                ProcessBuilder(cmd)
+                    .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+                    .redirectError(ProcessBuilder.Redirect.INHERIT)
+                    .start()
+                    .waitFor()
+            val rows = if (code == 0 && tmp.length() > 0) MiniJson.parse(tmp.readText()) as? List<*> else null
+            return code to rows
+        } finally {
+            if (!tmp.delete() && tmp.exists()) System.err.println("  could not delete $tmp")
+        }
+    }
+
+    /**
+     * Per workload, the row of the fork with the median ns/event (the lower middle one for an
+     * even count), plus every fork's ns/event in `fork_ns_per_event`.
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun medianFork(forks: List<List<*>>): List<Any?> =
+        forks.first().indices.map { i ->
+            val rows = forks.map { it[i] as MutableMap<String, Any?> }
+            val timed = rows.filter { it["ns_per_event"] is Number }
+            if (timed.isEmpty()) {
+                rows.first()
+            } else {
+                val sorted = timed.sortedBy { (it["ns_per_event"] as Number).toDouble() }
+                sorted[(sorted.size - 1) / 2].also { row ->
+                    row["forks"] = rows.size
+                    row["fork_ns_per_event"] = rows.map { it["ns_per_event"] }
+                }
+            }
+        }
+
+    /** Runs [CountChild] for [spec]; returns workload -> allocs per event (missing when it failed). */
+    private fun countAllocations(
+        java: String,
+        jvmArgs: List<String>,
+        classpath: String,
+        spec: ParserSpec,
+        workloads: List<Workload>,
+        corpusDir: File,
+    ): Map<String, Double> {
+        val tmp = File.createTempFile("jsonbench-count-${spec.id}-", ".json")
+        try {
+            val cmd = ArrayList<String>()
+            cmd += java
+            cmd += jvmArgs
+            cmd += listOf("-cp", classpath, "com.vitorpamplona.jsonbench.MainKt")
+            cmd += listOf("--child-parser", spec.id, "--child-count", "--child-out", tmp.path, "--corpus", corpusDir.path)
+            cmd += listOf("--workloads", workloads.joinToString(",") { it.name })
+            val code =
+                ProcessBuilder(cmd)
+                    .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+                    .redirectError(ProcessBuilder.Redirect.INHERIT)
+                    .start()
+                    .waitFor()
+            if (code != 0 || tmp.length() == 0L) {
+                System.err.println("  allocation-counting JVM for ${spec.id} exited with code $code")
+                return emptyMap()
+            }
+            val out = HashMap<String, Double>()
+            (MiniJson.parse(tmp.readText()) as? Map<*, *>)?.forEach { (k, v) -> if (k is String && v is Number) out[k] = v.toDouble() }
+            return out
+        } finally {
+            if (!tmp.delete() && tmp.exists()) System.err.println("  could not delete $tmp")
+        }
+    }
+
+    /** Puts the counted allocations into the timed rows (only rows that were timed). */
+    private fun mergeCounts(
+        rows: List<*>,
+        counts: Map<String, Double>,
+    ) {
+        for (r in rows) {
+            @Suppress("UNCHECKED_CAST")
+            val row = r as? MutableMap<String, Any?> ?: continue
+            val allocs = counts[row["workload"]]
+            if (allocs == null || row["median_ns"] == null) continue
+            row["allocs_per_event"] = allocs
+            row["objects_note"] = OBJECTS_NOTE
+        }
     }
 
     private fun failedRow(
@@ -422,6 +605,9 @@ object Parent {
             "gc_count" to null,
             "gc_ms" to null,
             "retained_bytes_per_event" to null,
+            "retained_objects_per_event" to null,
+            "retained_top_classes" to null,
+            "objects_note" to null,
         )
 
     private fun gcName(beans: List<String>): String =

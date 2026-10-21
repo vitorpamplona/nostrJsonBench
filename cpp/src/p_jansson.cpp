@@ -48,9 +48,9 @@ class Dom final : public Runner {
     d.str(sv(member(root, "sig")));
     d.event_end();
   }
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) {
+    for (const auto& l : frames) {
       json_t* root = json_loadb(l.data(), l.size(), JSON_ALLOW_NUL, nullptr);
       sink += uint64_t(json_integer_value(json_object_get(root, "kind"))) +
               json_array_size(json_object_get(root, "tags"));

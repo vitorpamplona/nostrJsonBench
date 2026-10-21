@@ -14,14 +14,15 @@ application {
     mainClass.set("com.vitorpamplona.jsonbench.MainKt")
     applicationName = "jsonbench"
     // The parent process forks one child JVM per parser with these same arguments
-    // (see Main.kt), so every parser gets the same fixed heap and collector.
-    // - A fixed 2g heap: no heap resizing in the middle of a measurement.
-    // - G1 explicitly: the JVM falls back to Serial on small containers, and the
-    //   collector changes both the allocation cost and the GC numbers we report.
+    // (see Main.kt), so every parser gets the same heap and collector.
+    // - The heap Amethyst Desktop runs with: -Xmx2g, no -Xms, so G1 sizes and grows it
+    //   the way it does in the app.
+    // - G1 explicitly: the desktop's default on any machine with 2+ cores and 2 GB, but the
+    //   JVM falls back to Serial on small containers, and the collector changes both the
+    //   allocation cost and the GC numbers we report.
     // - jdk.incubator.vector: simdjson-java needs the incubating Vector API.
     applicationDefaultJvmArgs =
         listOf(
-            "-Xms2g",
             "-Xmx2g",
             "-XX:+UseG1GC",
             "--add-modules",
@@ -69,10 +70,32 @@ val writeLibraryVersions by tasks.registering(WriteProperties::class) {
     property("minimal-json", libs.versions.minimalJson.get())
     property("json-smart", libs.versions.jsonSmart.get())
     property("jsoniter-scala", libs.versions.jsoniterScala.get())
+    property("java-allocation-instrumenter", libs.versions.allocationInstrumenter.get())
     // The Quartz under test: the release from the catalog, or the commit of a local
     // Amethyst checkout when built with -PquartzDir (see settings.gradle.kts).
     property("quartz", quartzUnderTest)
 }
+// The allocation-counting agent (allocs_per_event). It is never on the benchmark's
+// classpath: the parent passes it as -javaagent to a separate, untimed child JVM per
+// parser (see Main.kt), which appends it to the boot class path itself. The harness only
+// compiles against its Sampler API.
+val allocationAgent: Configuration =
+    configurations.create("allocationAgent") {
+        isTransitive = false
+    }
+distributions.main {
+    contents {
+        from(allocationAgent) {
+            into("agent")
+            rename { "java-allocation-instrumenter.jar" }
+        }
+    }
+}
+tasks.named<JavaExec>("run") {
+    val agent = allocationAgent
+    doFirst { systemProperty("jsonbench.allocAgent", agent.singleFile.absolutePath) }
+}
+
 sourceSets.main {
     resources.srcDir(writeLibraryVersions.map { generatedResources.get() })
 }
@@ -97,6 +120,10 @@ dependencies {
     implementation(libs.scala3.library)
     implementation(libs.jsoniter.scala.core)
     compileOnly(libs.jsoniter.scala.macros)
+
+    // Allocation counting: compile against the Sampler API, ship the jar as an agent.
+    compileOnly(libs.allocation.instrumenter)
+    allocationAgent(libs.allocation.instrumenter)
 
     // JNI secp256k1 backend quartz needs at runtime on plain JVM.
     runtimeOnly(libs.secp256k1.kmp.jni.jvm)

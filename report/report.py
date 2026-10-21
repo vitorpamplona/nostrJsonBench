@@ -55,6 +55,14 @@ def gc_cell(r):
     return f"{r['gc_count']} / {fmt(r.get('gc_ms'), 0)} ms"
 
 
+def garbage_objects(r):
+    """Objects one parse leaves for the collector or free(): created minus kept."""
+    created, kept = r.get("allocs_per_event"), r.get("retained_objects_per_event")
+    if created is None or kept is None:
+        return None
+    return max(created - kept, 0.0)
+
+
 def geomean(values):
     values = [v for v in values if v and v > 0]
     if not values:
@@ -123,8 +131,10 @@ def main():
     L.append(
         "MB/s is input bytes per second of median round (higher is better). Single thread. "
         "`× quartz` is speed relative to Amethyst's production parser (`jvm/quartz-jackson`, "
-        "Jackson + Quartz's EventDeserializer) on the same workload. Alloc is heap bytes and "
-        "allocation count per parsed event; GC is collections / total GC time during measurement.\n"
+        "Jackson + Quartz's EventDeserializer) on the same workload. Alloc is heap bytes per parsed "
+        "event; objects created is allocations per parse, objects kept is what each kept event "
+        "still holds alive, garbage the difference; GC is collections / total GC time during "
+        "measurement.\n"
     )
 
     if manifest:
@@ -169,15 +179,19 @@ def main():
             continue
         mrows.sort(key=lambda r: -(r.get("mb_per_s") or 0))
         L.append(f"## {MODE_TITLES[mode]} — `{headline}` workload\n")
-        L.append("| # | language | parser | input | MB/s | ns/event | × quartz | alloc B/event | allocs/event | GC | retained B/event | license |")
-        L.append("|---:|---|---|---|---:|---:|---:|---:|---:|---|---:|---|")
+        L.append(
+            "| # | language | parser | input | MB/s | ns/event | × quartz | alloc B/event | objects created/event "
+            "| objects kept/event | garbage objects/event | GC | retained B/event | license |"
+        )
+        L.append("|---:|---|---|---|---:|---:|---:|---:|---:|---:|---:|---|---:|---|")
         for i, r in enumerate(mrows, 1):
             nspe = r["median_ns"] / r["events"]
             rel = base.get(r["workload"])
             L.append(
                 f"| {i} | {r['language']} | `{r['parser']}` | {r.get('input', '')} | {fmt(r.get('mb_per_s'))} "
                 f"| {fmt(nspe)} | {fmt(rel / nspe, 2) + '×' if rel else '–'} "
-                f"| {fmt(r.get('alloc_bytes_per_event'))} | {fmt(r.get('allocs_per_event'), 1)} | {gc_cell(r)} "
+                f"| {fmt(r.get('alloc_bytes_per_event'))} | {fmt(r.get('allocs_per_event'), 1)} "
+                f"| {fmt(r.get('retained_objects_per_event'), 1)} | {fmt(garbage_objects(r), 1)} | {gc_cell(r)} "
                 f"| {fmt(r.get('retained_bytes_per_event'))} | {r.get('license') or ''} |"
             )
         L.append("")

@@ -49,9 +49,9 @@ class Dom final : public Runner {
     d.str(sv(member(root, "sig")));
     d.event_end();
   }
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) {
+    for (const auto& l : frames) {
       sajson::document doc = parse(l);
       sajson::value root = doc.get_root();
       sink += uint64_t(root.get_value_of_key(sajson::literal("kind")).get_integer_value()) +

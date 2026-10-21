@@ -26,6 +26,7 @@ type settings struct {
 	WarmupMs  int `json:"warmup_ms"`
 	MinTimeMs int `json:"min_time_ms"`
 	MinRounds int `json:"min_rounds"`
+	Burst     int `json:"burst"`
 }
 
 type workload struct {
@@ -70,6 +71,10 @@ type row struct {
 	// pass kept alive (median of 3 passes; see measureRetained). Null when the
 	// parser's result is invalidated by the next parse, or the pass failed.
 	RetainedBytesPerEvent *float64 `json:"retained_bytes_per_event"`
+	// Heap objects still alive per event in the same keep passes (MemStats.HeapObjects
+	// growth, median of the same 3 passes). Null wherever retained bytes is null.
+	RetainedObjectsPerEvent *float64 `json:"retained_objects_per_event"`
+	ObjectsNote             *string  `json:"objects_note"`
 	// Go-specific extra: estimated GC CPU time (runtime/metrics
 	// /cpu/classes/gc/total:cpu-seconds) over the measured rounds. gc_ms is only the
 	// stop-the-world pause total, which hides the concurrent mark work.
@@ -118,6 +123,7 @@ func parseFlags() opts {
 	fs.IntVar(&o.set.WarmupMs, "warmup-ms", 1000, "warmup per (workload, parser)")
 	fs.IntVar(&o.set.MinTimeMs, "min-time-ms", 2000, "minimum measured time")
 	fs.IntVar(&o.set.MinRounds, "min-rounds", 5, "minimum measured rounds")
+	fs.IntVar(&o.set.Burst, "burst", 64, "frames built (untimed) before each timed burst")
 	fs.BoolVar(&o.quick, "quick", false, "smoke test: warmup 200, min-time 300, min-rounds 3")
 	fs.BoolVar(&o.list, "list", false, "print parser ids and exit")
 	fs.BoolVar(&o.child, "child", false, "internal: run the given parser in this process and print rows as JSON")
@@ -142,6 +148,9 @@ func parseFlags() opts {
 		if !o.explicitMinRounds {
 			o.set.MinRounds = 3
 		}
+	}
+	if o.set.Burst < 1 {
+		fatal(fmt.Errorf("--burst must be at least 1, got %d", o.set.Burst))
 	}
 	o.workloads = splitList(wl)
 	o.parsers = splitList(ps)
@@ -259,6 +268,7 @@ func runParent(o opts, man *manifest, wls []workload, sel []parserDef) {
 			"--warmup-ms", fmt.Sprint(o.set.WarmupMs),
 			"--min-time-ms", fmt.Sprint(o.set.MinTimeMs),
 			"--min-rounds", fmt.Sprint(o.set.MinRounds),
+			"--burst", fmt.Sprint(o.set.Burst),
 		}
 		cmd := exec.Command(self, args...)
 		cmd.Stderr = os.Stderr
@@ -316,17 +326,17 @@ func printSummary(rows []row) {
 		}
 		return sorted[i].MBPerS > sorted[j].MBPerS
 	})
-	fmt.Fprintf(os.Stderr, "%-10s %-22s %-8s %6s %9s %9s %10s %8s %5s %8s %10s\n",
-		"workload", "parser", "mode", "digest", "MB/s", "ns/event", "B/event", "allocs/e", "GCs", "gcCPUms", "retainedB/e")
+	fmt.Fprintf(os.Stderr, "%-10s %-22s %-8s %6s %9s %9s %10s %8s %5s %8s %10s %9s\n",
+		"workload", "parser", "mode", "digest", "MB/s", "ns/event", "B/event", "allocs/e", "GCs", "gcCPUms", "retainedB/e", "retObj/e")
 	for _, r := range sorted {
 		d := "n/a"
 		if r.DigestOK != nil {
 			d = fmt.Sprint(*r.DigestOK)
 		}
-		fmt.Fprintf(os.Stderr, "%-10s %-22s %-8s %6s %9.1f %9.1f %10s %8s %5s %8s %10s\n",
+		fmt.Fprintf(os.Stderr, "%-10s %-22s %-8s %6s %9.1f %9.1f %10s %8s %5s %8s %10s %9s\n",
 			r.Workload, r.Parser, r.Mode, d, r.MBPerS, r.NsPerEvent,
 			fmtF(r.AllocBytesPerEvent), fmtF(r.AllocsPerEvent), fmtI(r.GCCount), fmtF(r.GCCPUMs),
-			fmtF(r.RetainedBytesPerEvent))
+			fmtF(r.RetainedBytesPerEvent), fmtF(r.RetainedObjectsPerEvent))
 	}
 }
 
@@ -423,7 +433,40 @@ func baseRow(p parserDef, w workload) row {
 		Parser: p.ID, Library: p.Library, Version: moduleVersion(p.Module), License: licenses[p.Module],
 		Mode: p.Mode, Input: p.Input, Notes: p.Notes,
 		Workload: w.Name, Events: w.Events, Bytes: w.Bytes,
+		ObjectsNote: nonEmpty(p.ObjectsNote),
 	}
+}
+
+// tinyAllocNote goes on every row with a retained object count: HeapObjects counts the
+// runtime's tiny blocks, not the allocations packed into them, while Mallocs
+// (allocs_per_event) counts each allocation. A -race build disables the tiny allocator
+// and gives the per-allocation count (see README).
+const tinyAllocNote = "Retained objects are MemStats.HeapObjects, which counts each 16-byte tiny-allocator block once: pointer-free allocations under 16 bytes (short strings such as \"root\" or a short relay URL) share blocks, so retained objects can be a little lower than the allocations kept alive, while allocs_per_event counts every allocation"
+
+// memoryNote goes on every row: how the memory and GC columns are taken under the
+// burst rounds (HARNESS.md "Arrival").
+const memoryNote = "alloc_bytes_per_event, allocs_per_event, gc_count, gc_ms and gc_cpu_ms come from a separate untimed pass: as many rounds as were measured, over the preloaded lines, with no frame copies, so they cover the parses only"
+
+func joinNote(a, b string) string {
+	if a == "" {
+		return b
+	}
+	return a + ". " + b
+}
+
+func joinNotes(a *string, b string) *string {
+	if a == nil {
+		return &b
+	}
+	s := *a + ". " + b
+	return &s
+}
+
+func nonEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 func loadLines(dir string, w workload) ([][]byte, error) {
@@ -519,7 +562,9 @@ func runOne(p parserDef, o opts, w workload) (r row) {
 		}
 	}
 
-	roundFn := func() (int64, int) {
+	// tightRound parses the preloaded lines back to back. Only the untimed memory pass
+	// uses it (4b below).
+	tightRound := func() (int64, int) {
 		var sink int64
 		errs := 0
 		for _, l := range lines {
@@ -532,39 +577,76 @@ func runOne(p parserDef, o opts, w workload) (r row) {
 		return sink, errs
 	}
 
-	// 3. warm up
+	// burstRound is one round under HARNESS.md "Arrival": for each burst of --burst
+	// frames, build the frames untimed as freshly allocated []byte copies of the lines
+	// (what gorilla/websocket ReadMessage and coder/websocket Read hand the app), time
+	// parsing them one by one, then drop them so they are garbage. It returns the sum of
+	// the bursts' timed parts.
+	frames := make([][]byte, o.set.Burst)
+	burstRound := func() (ns int64, sink int64, errs int) {
+		for start := 0; start < len(lines); start += len(frames) {
+			fs := frames[:min(len(frames), len(lines)-start)]
+			for i, l := range lines[start : start+len(fs)] {
+				f := make([]byte, len(l))
+				copy(f, l)
+				fs[i] = f
+			}
+			t0 := time.Now()
+			for _, f := range fs {
+				v, err := run(f)
+				if err != nil {
+					errs++
+				}
+				sink += v
+			}
+			ns += int64(time.Since(t0))
+			clear(fs)
+		}
+		return ns, sink, errs
+	}
+
+	// 3. warm up (burst rounds, like the measured ones)
 	var sink int64
 	warm := time.Duration(o.set.WarmupMs) * time.Millisecond
 	ws := time.Now()
 	for {
-		s, _ := roundFn()
+		_, s, _ := burstRound()
 		sink += s
 		if time.Since(ws) >= warm {
 			break
 		}
 	}
 
-	// 4. measure
+	// 4. measure. runtime.ReadMemStats stops the world, so it is not read per burst:
+	// every memory and GC counter comes from the separate pass below.
 	const maxRounds = 10000
 	durs := make([]int64, 0, maxRounds)
 	minTime := time.Duration(o.set.MinTimeMs) * time.Millisecond
+	runtime.GC()
+	ms := time.Now()
+	timedErrs := 0
+	for len(durs) < maxRounds {
+		ns, s, e := burstRound()
+		durs = append(durs, ns)
+		sink += s
+		timedErrs += e
+		if len(durs) >= o.set.MinRounds && time.Since(ms) >= minTime {
+			break
+		}
+	}
+
+	// 4b. memory pass (untimed): as many tight rounds over the preloaded lines as were
+	// measured, with MemStats and the GC CPU metric read around them, so the alloc and
+	// GC counters cover the parses only and not the frame copies or their garbage.
 	gcSample := []metrics.Sample{{Name: "/cpu/classes/gc/total:cpu-seconds"}}
 	var before, after runtime.MemStats
 	runtime.GC()
 	metrics.Read(gcSample)
 	gcCPUBefore := gcSample[0].Value.Float64()
 	runtime.ReadMemStats(&before)
-	ms := time.Now()
-	timedErrs := 0
-	for len(durs) < maxRounds {
-		t0 := time.Now()
-		s, e := roundFn()
-		durs = append(durs, int64(time.Since(t0)))
+	for i := 0; i < len(durs); i++ {
+		s, _ := tightRound()
 		sink += s
-		timedErrs += e
-		if len(durs) >= o.set.MinRounds && time.Since(ms) >= minTime {
-			break
-		}
 	}
 	runtime.ReadMemStats(&after)
 	metrics.Read(gcSample)
@@ -589,14 +671,18 @@ func runOne(p parserDef, o opts, w workload) (r row) {
 	gcms := float64(after.PauseTotalNs-before.PauseTotalNs) / 1e6
 	gccpu := (gcCPUAfter - gcCPUBefore) * 1e3
 	r.AllocBytesPerEvent, r.AllocsPerEvent, r.GCCount, r.GCMs, r.GCCPUMs = &ab, &ac, &gcn, &gcms, &gccpu
+	r.Notes = joinNote(r.Notes, memoryNote)
 	r.Sink = sink
 
 	// 5. retained heap (untimed, after the measured rounds)
 	if im.keep != nil && r.Errors == 0 {
-		r.RetainedBytesPerEvent = measureRetained(im.keep, lines)
+		r.RetainedBytesPerEvent, r.RetainedObjectsPerEvent = measureRetained(im.keep, lines)
 	}
-	fmt.Fprintf(os.Stderr, "   %-10s rounds=%-5d median=%.2fms %.1f MB/s %.0f B/ev %.1f allocs/ev gc=%d retained=%s B/ev digest=%v sink=%d\n",
-		w.Name, r.Rounds, med/1e6, r.MBPerS, ab, ac, gcn, fmtF(r.RetainedBytesPerEvent), fmtDigest(r.DigestOK), sink)
+	if r.RetainedObjectsPerEvent != nil {
+		r.ObjectsNote = joinNotes(r.ObjectsNote, tinyAllocNote)
+	}
+	fmt.Fprintf(os.Stderr, "   %-10s rounds=%-5d median=%.2fms %.1f MB/s %.0f B/ev %.1f allocs/ev gc=%d retained=%s B/ev %s objs/ev digest=%v sink=%d\n",
+		w.Name, r.Rounds, med/1e6, r.MBPerS, ab, ac, gcn, fmtF(r.RetainedBytesPerEvent), fmtF(r.RetainedObjectsPerEvent), fmtDigest(r.DigestOK), sink)
 	return r
 }
 
@@ -604,16 +690,18 @@ func runOne(p parserDef, o opts, w workload) (r row) {
 const retainedPasses = 3
 
 // measureRetained runs the parser's keep pass retainedPasses times and returns the
-// median HeapAlloc growth per event, or nil if a pass failed. Each pass parses a
-// fresh copy of every line and keeps all results alive across a runtime.GC() (see
-// keepOf); the previous pass's results are garbage by the next pass's first GC.
-func measureRetained(keep keepFn, lines [][]byte) *float64 {
+// median HeapAlloc growth per event and the median HeapObjects growth per event (each
+// the median of the same passes), or nils if a pass failed. Each pass parses a fresh
+// copy of every line and keeps all results alive across a runtime.GC() (see keepOf);
+// the previous pass's results are garbage by the next pass's first GC.
+func measureRetained(keep keepFn, lines [][]byte) (bytesPerEvent, objectsPerEvent *float64) {
 	if len(lines) == 0 {
-		return nil
+		return nil, nil
 	}
 	deltas := make([]int64, 0, retainedPasses)
+	objs := make([]int64, 0, retainedPasses)
 	for i := 0; i < retainedPasses; i++ {
-		d, err := func() (d int64, err error) {
+		d, err := func() (d retained, err error) {
 			defer func() {
 				if e := recover(); e != nil {
 					err = fmt.Errorf("panic: %v", e)
@@ -623,13 +711,17 @@ func measureRetained(keep keepFn, lines [][]byte) *float64 {
 		}()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "   retained pass failed: %v\n", err)
-			return nil
+			return nil, nil
 		}
-		deltas = append(deltas, d)
+		deltas = append(deltas, d.bytes)
+		objs = append(objs, d.objects)
 	}
-	sort.Slice(deltas, func(i, j int) bool { return deltas[i] < deltas[j] })
-	v := float64(deltas[len(deltas)/2]) / float64(len(lines))
-	return &v
+	median := func(s []int64) *float64 {
+		sort.Slice(s, func(i, j int) bool { return s[i] < s[j] })
+		v := float64(s[len(s)/2]) / float64(len(lines))
+		return &v
+	}
+	return median(deltas), median(objs)
 }
 
 func fmtDigest(b *bool) string {

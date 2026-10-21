@@ -71,9 +71,9 @@ class OnDemandRunner final : public Runner {
     digest_event(d, e);
   }
 
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) {
+    for (const auto& l : frames) {
       E e;
       parse(l, e);
       sink += e.kind + e.tags.size() + e.content.size();
@@ -124,9 +124,9 @@ class DomRunner final : public Runner {
     d.event_end();
   }
 
-  uint64_t round() override {
+  uint64_t parse_burst(Frames frames) override {
     uint64_t sink = 0;
-    for (const auto& l : lines_) {
+    for (const auto& l : frames) {
       dom::element root = parser_.parse(l);
       sink += uint64_t(root["kind"].get_uint64()) + dom::array(root["tags"]).size();
     }

@@ -21,8 +21,9 @@ Every event has exactly the seven NIP-01 fields: `id`, `pubkey`, `sig`, `content
 ## The task a parser performs
 
 **One parse = one event line → one in-memory event.** The harness loads every line
-of a workload into memory *before* timing, as the language's WebSocket text-frame type
-(see "Input" below), then times parsing all of them.
+of a workload into memory before timing. Each parse then starts the way it does in a running
+client: the parser is warmed up, and the frame is new, just built by the socket (see "Arrival"
+under Timing).
 
 Each parser entry declares a `mode`:
 
@@ -101,7 +102,26 @@ Per (workload, parser):
 1. load inputs; 2. verify (above, untimed); 3. warm up: full rounds for `--warmup-ms`;
 4. measure: full rounds until at least `--min-rounds` rounds **and** `--min-time-ms`
    have elapsed (stop at 10 000 rounds). One round parses every event of the workload once,
-   single-threaded, in file order. Time each round with a monotonic nanosecond clock.
+   single-threaded, in file order.
+
+**Arrival.** In a running client the parser is warm, but every frame is new: the socket
+has just built it, and it becomes garbage after the parse. A round reproduces that in
+bursts of `--burst` frames (default 64), as frames come off a socket read:
+
+1. Untimed: build the burst's frames fresh from the lines' UTF-8 bytes, the way the
+   WebSocket client does (JVM `new String(bytes, UTF_8)`, Rust `String::from_utf8`, C++ a
+   new `std::string`, Go a new `[]byte`, JS `TextDecoder.decode`, Python `bytes.decode`).
+2. Timed, with a monotonic nanosecond clock: parse the burst's frames, one parse per frame.
+3. Drop the frames, so they are garbage (or freed) like the socket's.
+
+A round's time is the sum of its bursts. Memory counters cover the parses only: read
+them around each burst's timed part where that is cheap, otherwise take them in a separate
+untimed pass over the preloaded lines and say so in `notes`.
+
+Checked in Rust: the burst size (16, 64, 256), timing every parse alone, and parsing each
+event only once after warming up on other events all give the same ns/event as a tight
+loop over preloaded frames, within run-to-run noise (~5%). Repeated rounds don't let the
+CPU learn the events: a workload is megabytes.
 
 Report the median round (headline), the minimum and the 90th percentile. Derived:
 `ns_per_event = median_ns / events`, `mb_per_s = bytes / (median_ns / 1e9) / 1e6`,
@@ -125,9 +145,35 @@ buys: allocation per event measures garbage, retained heap measures what stays. 
 used heap between `System.gc()` calls; Go: `HeapAlloc` after `runtime.GC()`; Rust/C/C++:
 live bytes from the allocation counter. Null when not measured.
 
+**Objects created, kept and thrown away** (null when the runtime can't count exactly):
+
+- `allocs_per_event` (above) is the number of objects **created** by one parse: every heap
+  allocation (object, array, string, malloc block) during the measured rounds, divided by
+  rounds × events. Where the timed run can't count them, a harness may count them in a
+  separate untimed pass and say so in `objects_note` (the JVM counts through a bytecode
+  allocation agent, which sees every `new` before the JIT's escape analysis removes any).
+- `retained_objects_per_event`: objects still alive per event in the retained-heap pass
+  (every result kept, full collection first): the count counterpart of
+  `retained_bytes_per_event`. Rust/C/C++: live allocations from the counting allocator;
+  Go: `MemStats.HeapObjects`; JVM: live instances in a class histogram; JS: objects in a
+  heap snapshot (or the engine's own object count); Python: live tracemalloc traces after
+  the keep pass (a `sys.getallocatedblocks()` delta also subtracts the frames freed
+  during the pass).
+- Garbage, the objects a parse leaves for the collector or `free`, is `allocs_per_event −
+  retained_objects_per_event`; the report computes it, harnesses don't emit it.
+- `objects_note` (string, optional): how the counts were taken when it isn't obvious.
+
+Exclude the container that holds the kept results from both retained numbers.
+
 Isolation: harnesses on JIT runtimes must run each parser in a **fresh process** so
 one parser's JIT profile and heap don't tax the next (the JVM harness forks itself per
 parser, JMH-style). Compiled harnesses may run everything in one process.
+
+A JIT can settle on a fast or a slow compilation of the same parser from one process to
+the next (JVM `kotlinx-typed`: 1,197 ns/event in one fork of five, ~1,760 in the other
+four). A JIT harness may time each parser in several fresh processes and report, per
+workload, the process with the median ns/event; it records `forks` and every process's
+`fork_ns_per_event` in the row. The JVM harness runs 3 (`--forks`, 1 with `--quick`).
 
 ## Command line
 
@@ -141,6 +187,7 @@ Every harness exposes the same flags (through its own launcher, e.g. `run.sh`):
 --warmup-ms N         default 1000
 --min-time-ms N       default 2000
 --min-rounds N        default 5
+--burst N             frames built (untimed) before each timed burst, default 64
 --quick               warmup 200, min-time 300, min-rounds 3 (smoke test)
 --list                print parser ids, one per line, and exit
 ```
@@ -155,7 +202,7 @@ Every harness exposes the same flags (through its own launcher, e.g. `run.sh`):
   "language": "Rust",
   "runtime": "rustc 1.97.0, -C target-cpu=native, release",
   "host": { "cpu": "…", "cores": 4, "os": "Linux 6.x" },
-  "settings": { "warmup_ms": 1000, "min_time_ms": 2000, "min_rounds": 5 },
+  "settings": { "warmup_ms": 1000, "min_time_ms": 2000, "min_rounds": 5, "burst": 64 },
   "corpus_fingerprint": "<manifest.fingerprint>",
   "results": [
     {
@@ -174,7 +221,9 @@ Every harness exposes the same flags (through its own launcher, e.g. `run.sh`):
       "ns_per_event": 1348.7, "mb_per_s": 670.2, "events_per_s": 741430,
       "alloc_bytes_per_event": 1840.2, "allocs_per_event": 14.0,
       "gc_count": null, "gc_ms": null,
-      "retained_bytes_per_event": null
+      "retained_bytes_per_event": null,
+      "retained_objects_per_event": null,
+      "objects_note": null
     }
   ]
 }

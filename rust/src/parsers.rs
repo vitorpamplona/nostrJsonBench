@@ -6,9 +6,10 @@ use sha2::Sha256;
 use std::hint::black_box;
 
 /// One input line: what a WebSocket text frame is in Rust, a `&str` (tungstenite
-/// `Message::Text(Utf8Bytes)`), already UTF-8-validated by the socket. The harness builds it
-/// (as a leaked `String`, so results can borrow it for `'static`) before timing; every parser
-/// starts from it, and any copy it needs on top is part of the timed parse.
+/// `Message::Text(Utf8Bytes)`), already UTF-8-validated by the socket. Timed rounds point it at
+/// a frame built fresh for its burst (untimed, dropped after the burst); verify, the digest and
+/// the retained pass point it at the preloaded, leaked lines. Every parser starts from it, and
+/// any copy it needs on top is part of the timed parse.
 #[derive(Clone, Copy)]
 pub struct Line {
     pub s: &'static str,
@@ -37,13 +38,14 @@ pub trait Parser {
     /// Parse one line and feed the decoded event into the digest.
     fn digest(&mut self, l: Line, h: &mut Sha256) -> R<()>;
     /// Untimed: parse every line once more, keep every result alive, and return the live heap
-    /// bytes they hold per event. `None` when the results borrow a reused parser buffer or tape,
-    /// so they cannot all be kept at once.
-    fn retained(&mut self, lines: &[Line]) -> Option<f64> {
+    /// bytes and blocks they hold per event. `None` when the results borrow a reused parser
+    /// buffer or tape, so they cannot all be kept at once.
+    fn retained(&mut self, lines: &[Line]) -> Option<Retained> {
         let _ = lines;
         None
     }
-    /// One timed round over the workload; monomorphized per parser, so `fold` inlines.
+    /// Parses `lines` once (the harness times one burst of frames per call); monomorphized
+    /// per parser, so `fold` inlines.
     #[inline(never)]
     fn round(&mut self, lines: &[Line]) -> u64 {
         let mut sink = 0u64;
@@ -59,23 +61,34 @@ pub struct Entry {
     pub make: fn() -> Box<dyn Parser>,
 }
 
-/// Keeps the result of parsing every line and returns the live heap bytes per event: the
-/// allocator's (allocated - freed) before vs after, with the `Vec` of results allocated first
-/// so its own buffer is not counted. Temporaries a parse frees again cancel out. The result's
-/// own inline size (`size_of::<T>()`, e.g. the `Event` struct's String headers) is added,
-/// because the JVM and C++ harnesses count the event object itself too.
-fn retain_with<T>(lines: &[Line], mut parse: impl FnMut(Line) -> R<T>) -> Option<f64> {
+/// What the keep pass leaves alive, per event.
+#[derive(Clone, Copy)]
+pub struct Retained {
+    pub bytes: f64,
+    pub objects: f64,
+}
+
+/// Keeps the result of parsing every line and returns the live heap per event: the
+/// allocator's live bytes and live blocks before vs after, with the `Vec` of results allocated
+/// first so its own buffer is not counted. Temporaries a parse frees again cancel out. The
+/// result's own inline size (`size_of::<T>()`, e.g. the `Event` struct's String headers) is
+/// added to the bytes, because the JVM and C++ harnesses count the event object itself too;
+/// it is not a heap block, so the object count holds only the blocks the result owns.
+fn retain_with<T>(lines: &[Line], mut parse: impl FnMut(Line) -> R<T>) -> Option<Retained> {
     let mut kept: Vec<T> = Vec::with_capacity(lines.len());
-    let before = crate::alloc::live();
+    let (bytes0, blocks0) = crate::alloc::live();
     for &l in lines {
         kept.push(parse(l).ok()?);
     }
-    let after = crate::alloc::live();
+    let (bytes1, blocks1) = crate::alloc::live();
     black_box(&kept);
     drop(kept);
-    let n = lines.len().max(1);
+    let n = lines.len().max(1) as f64;
     let inline = (std::mem::size_of::<T>() * lines.len()) as u64;
-    Some((after.saturating_sub(before) + inline) as f64 / n as f64)
+    Some(Retained {
+        bytes: (bytes1.wrapping_sub(bytes0) as i64).max(0) as f64 / n + inline as f64 / n,
+        objects: (blocks1.wrapping_sub(blocks0) as i64).max(0) as f64 / n,
+    })
 }
 
 /// Declares a parser: its state, and the expression that turns `l: Line` into a `View`.
@@ -85,7 +98,7 @@ macro_rules! parser {
     (keep $name:ident { $($f:ident : $t:ty = $init:expr),* $(,)? }, |$s:ident, $l:ident| $body:expr) => {
         parser!(@impl $name { $($f : $t = $init),* }, |$s, $l| $body,
             #[allow(unused_variables)]
-            fn retained(&mut self, lines: &[Line]) -> Option<f64> {
+            fn retained(&mut self, lines: &[Line]) -> Option<Retained> {
                 retain_with(lines, |$l: Line| -> R<_> {
                     let $s = &mut *self;
                     Ok($body)

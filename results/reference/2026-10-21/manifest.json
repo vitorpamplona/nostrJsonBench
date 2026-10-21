@@ -4,7 +4,7 @@
   "canonical": false,
   "fingerprint": "f995f42b68b5386e990c859e6c8058e8df7cd1d430e38e9e14d6e954e81c89bb",
   "events": 31161,
-  "dropped_duplicates": 217080,
+  "dropped_duplicates": 0,
   "dropped_unrepresentable": 0,
   "workloads": [
     {

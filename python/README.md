@@ -29,18 +29,20 @@ The old `json-stdlib-bytes` and `baseline-utf8-decode` rows were dropped (they s
 from bytes), and orjson, msgspec and the simdjson bindings now take the `str` instead of
 bytes. `baseline-utf8-encode` is the `s.encode()` step alone.
 
-**Fresh `str` objects every round.** CPython caches a `str`'s UTF-8 form on the object the
-first time the C API asks for it (`PyUnicode_AsUTF8AndSize`). orjson, msgspec, rapidjson,
-pysimdjson and cysimdjson do (checked with `sys.getsizeof` before and after one parse);
-json, ujson, simplejson and `str.encode` do not. Rounds over the same `str` objects would
-give those parsers the encode for free from the second parse on, while a socket hands over
-a new `str` per frame. So every round, warm-up included, runs on a new list of `str`s
-decoded from the raw lines outside the timer, and each round is timed on its own
-(`--min-time-ms` counts timed rounds only). ASCII-only strings have no cache to fill, since
-their UTF-8 is their storage; on the `all` workload 7% of the lines (10% of the bytes)
-are non-ASCII, so the effect is bounded; a one-off check on this shared machine was too
-noisy to size it (orjson 2012 against 2382 ns/event reused vs fresh, msgspec the other way
-round).
+**Arrival: fresh `str` frames in bursts.** A round walks the workload in bursts of
+`--burst` frames (default 64; `--quick` keeps it). For each burst, outside the timer, the
+lines' UTF-8 bytes are decoded with `bytes.decode('utf-8')` into new `str`s, as
+`websockets` and aiohttp hand them over. Then the burst is parsed under
+`time.perf_counter_ns`, one parse per frame, and the frames are dropped. A round's time
+is the sum of its bursts; warm-up runs the same rounds, and `--min-time-ms` counts timed
+time only. Verify, the digest and the retained pass parse fresh `str`s too, untimed.
+
+New `str`s matter here: CPython caches a `str`'s UTF-8 form on the object the first time
+the C API asks for it (`PyUnicode_AsUTF8AndSize`). orjson, msgspec, rapidjson, pysimdjson
+and cysimdjson do (checked with `sys.getsizeof` before and after one parse); json, ujson,
+simplejson and `str.encode` do not. Reused `str`s would give those parsers the encode for
+free. ASCII-only strings have no cache to fill, since their UTF-8 is their storage; on
+the `all` workload 7% of the lines (10% of the bytes) are non-ASCII.
 
 `websockets` can also hand over the raw bytes of a text frame (`recv(decode=False)`),
 which would make bytes free for jiter and yyjson; that is not the default path and is not
@@ -78,12 +80,16 @@ own sources.
 ## Memory and GC
 
 - `gc_count` / `gc_ms`: `gc.callbacks` counts the cyclic collector's runs and times them
-  during the timed rounds. Expect 0. CPython frees parsed events by reference counting as
+  during the timed part of each burst only (not while frames are decoded or dropped).
+  Expect 0. CPython frees parsed events by reference counting as
   soon as the loop drops them, so the gen-0 allocation counter never reaches its
   threshold.
 - `alloc_bytes_per_event`, `allocs_per_event`: null. CPython has no cumulative
-  allocation counter, and `tracemalloc` slows the parse too much to leave on during
-  timing.
+  allocation counter: `sys.getallocatedblocks()` and `tracemalloc` only see live blocks,
+  so the temporaries a parse frees never show, and `tracemalloc` slows the parse too much
+  to leave on during timing anyway. A C allocator hook (`PyMem_SetAllocator`) would still
+  miss the objects CPython reuses from its dict/list/tuple/float freelists, so it would
+  not be an exact object count either.
 - `retained_bytes_per_event`: after timing, one more pass under `tracemalloc` parses every
   event from a fresh `str` and keeps all results in a list allocated before tracing
   starts (so the container is not counted); the value is `get_traced_memory()` current
@@ -97,3 +103,24 @@ own sources.
   64-character hex ids and pubkeys. Null for the baseline and for the
   two `dom` rows (`pysimdjson`, `cysimdjson`): their results are views into a reused
   parser document, which cannot be kept.
+- `retained_objects_per_event`: the live heap blocks the same keep pass leaves, counted
+  from the same `tracemalloc` state (the number of traces after the pass, the snapshot's
+  own allocations filtered out), divided by the event count. That is one per allocation,
+  like the counting allocators of the compiled harnesses: a `list` is 2 (object + item
+  array; an empty one 1), a `dict` 2 (object + keys table), a `str`, `int` or msgspec
+  `Struct` 1. It is not a `sys.getallocatedblocks()` delta: that counter does see blocks
+  of every size (the ones over 512 bytes that pymalloc hands to `malloc` included,
+  checked), but it also drops for every frame `str` freed during the pass (and its UTF-8
+  cache), so the delta comes out about one block per event short. `objects_note` also gives
+  the number of Python objects in the kept result graph (a walk of the results with
+  `id()` de-duplication, counting only objects `tracemalloc` saw allocated in the pass).
+  On `notes` that is 25.5 for `json-stdlib`: 1 dict, 1 int (`created_at`; `kind` is a
+  cached small int), 5.7 lists (`tags` + 4.7 tags), and 17.8 strs = 4 (`id`, `pubkey`,
+  `content`, `sig`) + **7 keys** + 6.8 tag values. The keys are new on every event: the
+  stdlib scanner only shares keys within one document (its memo dict is cleared per call)
+  and does not intern them; ujson, rapidjson, simplejson, pysimdjson and yyjson do the
+  same. orjson and msgspec cache keys across calls but build new one-character strs
+  (`"e"`, `"p"`) where the stdlib returns CPython's cached latin-1 singletons, 4.4 per
+  event here, so they land at 22.9; yyjson does both (fresh keys and fresh one-character
+  strs, 29.9); jiter's string cache brings it to 14.5. The block count is the object count
+  plus 6.65 on `notes` (a keys table per dict, an item array per non-empty list).

@@ -59,8 +59,9 @@ function pkgMeta(name) {
 // id, library, mode, input (HARNESS.md vocabulary: 'string', 'string→bytes', 'bytes'),
 // notes, runtimes (where it is listed), meta() -> {version, license}, load() -> parse fn,
 // and optionally frame ('buffer': the extra Node `ws` rows), fold(result),
-// fields(result) (dom results), verify ('text' | 'bytes' for baselines) and
-// retained: false (results not measurable on the JS heap).
+// fields(result) (dom results), verify ('text' | 'bytes' for baselines),
+// retained: false (results not measurable on the JS heap) and exactAllocs (the runtimes
+// whose allocation tracker counts this parse exactly, see allocTracker).
 
 const td = new TextDecoder('utf-8');
 const te = new TextEncoder();
@@ -88,6 +89,7 @@ const PARSERS = [
     notes: 'JSON.parse(frame string), the web-client path; result is a plain object',
     meta: () => engineMeta(),
     load: () => (s) => JSON.parse(s),
+    exactAllocs: ['node', 'deno'],
   },
   {
     id: 'json-parse-buffer',
@@ -99,6 +101,7 @@ const PARSERS = [
     notes: WS_EXTRA + 'node:buffer Buffer -> toString("utf8") -> JSON.parse; the decode is timed',
     meta: () => engineMeta(),
     load: () => (b) => JSON.parse(b.toString('utf8')),
+    exactAllocs: ['node'], // Deno's Buffer is a JS polyfill
   },
   {
     id: 'baseline-buffer-tostring',
@@ -165,6 +168,7 @@ const PARSERS = [
       const s = require('simdjson');
       return (str) => s.parse(str);
     },
+    exactAllocs: ['node', 'deno'],
   },
   {
     id: 'simdjson-lazy',
@@ -248,6 +252,7 @@ function parseArgs(argv) {
     warmupMs: 1000,
     minTimeMs: 2000,
     minRounds: 5,
+    burst: 64,
     list: false,
     child: null,
   };
@@ -265,12 +270,14 @@ function parseArgs(argv) {
       case '--warmup-ms': o.warmupMs = Number(val()); break;
       case '--min-time-ms': o.minTimeMs = Number(val()); break;
       case '--min-rounds': o.minRounds = Number(val()); break;
+      case '--burst': o.burst = Number(val()); break;
       case '--quick': o.warmupMs = 200; o.minTimeMs = 300; o.minRounds = 3; break;
       case '--list': o.list = true; break;
       case '--child': o.child = val(); break;
       default: throw new Error(`unknown argument: ${a}`);
     }
   }
+  if (!Number.isInteger(o.burst) || o.burst < 1) throw new Error(`--burst must be an integer >= 1, got ${o.burst}`);
   if (!o.out) o.out = path.join(BENCH, 'results', `${RT}.json`);
   return o;
 }
@@ -332,7 +339,21 @@ function median(sorted) {
   return n % 2 ? sorted[(n - 1) >> 1] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
 }
 
+// Monotonic clocks, in ns. The timed one is read twice per burst (a 64-event burst is
+// ~50-100 µs), so it is the cheapest ns clock of each runtime; all three tick in 1 ns
+// steps. Per call (min of runs on the bench host): Bun.nanoseconds() ~36 ns, an
+// integer (performance.now ~40, process.hrtime.bigint ~53); Node and Deno
+// globalThis.performance.now(), a double in ms with ns digits, ~40 ns on Node
+// (process.hrtime.bigint ~86) and ~86 ns on Deno (the node:perf_hooks export ~138,
+// process.hrtime.bigint ~234). nowNs is only for deadlines.
 const nowNs = () => Number(process.hrtime.bigint());
+const burstClockNs = RT === 'bun'
+  ? () => Bun.nanoseconds()
+  : (() => {
+      const perf = globalThis.performance;
+      return () => perf.now() * 1e6;
+    })();
+const BURST_CLOCK = RT === 'bun' ? 'Bun.nanoseconds()' : 'performance.now()';
 
 function allocCounter() {
   // V8 >= ~13 exposes a cumulative total_allocated_bytes (Deno 2.9 has it, Node 22's V8 12.4
@@ -407,6 +428,242 @@ function measureRetained(probe, parse, raw, makeFrame) {
   return { perEvent: vals[1], touch };
 }
 
+// ---------------------------------------------------------------- object counts
+//
+// HARNESS.md "Objects created, kept and thrown away".
+//
+// Kept (retained_objects_per_event), V8 (Node, Deno): nodes of a heap snapshot, which V8
+// takes after its own full collection. Counted: every node whose type is a heap object
+// a JS value owns (COUNTED_V8 below: objects and arrays, the backing stores of their
+// elements and out-of-object properties, strings, heap numbers, closures, ...) and whose
+// self_size is > 0. Skipped: code, hidden, object shape (maps and descriptors, shared by
+// every object of a shape), synthetic roots and native (embedder) nodes. The size test
+// drops the size-0 "smi number" nodes (and their value strings) Deno's snapshots add for
+// every small integer: those are not heap objects. Bun: bun:jsc heapStats().objectCount,
+// every marked cell after Bun.gc(true), JSC butterflies (element/property storage)
+// included; a string's characters live outside the cell heap and are not a second
+// object there.
+const COUNTED_V8 = new Set(['object', 'array', 'string', 'concatenated string', 'sliced string', 'number', 'closure', 'regexp', 'symbol', 'bigint']);
+
+const asText = () => {
+  const dec = new TextDecoder();
+  return (c) => (typeof c === 'string' ? c : dec.decode(c, { stream: true }));
+};
+
+// Streams a snapshot and counts its nodes by type, reading only the header and the
+// "nodes" array (the snapshot of the `all` workload with every event kept is ~60 MB of
+// JSON; nothing is materialized but one chunk at a time).
+async function countSnapshotNodes(chunks) {
+  const text = asText();
+  let head = '';
+  let started = false, done = false;
+  let types, counted, typeField, sizeField, nf;
+  let field = 0, cur = 0, inNum = false, nodeType = 0;
+  const byType = {};
+  let total = 0;
+  for await (const raw of chunks) {
+    if (done) continue; // drain the stream
+    let chunk = text(raw);
+    if (!started) {
+      head += chunk;
+      const k = head.indexOf('"nodes":[');
+      if (k < 0) continue;
+      const meta = JSON.parse(head.slice(0, head.lastIndexOf(',', k)) + '}').snapshot.meta;
+      nf = meta.node_fields.length;
+      typeField = meta.node_fields.indexOf('type');
+      sizeField = meta.node_fields.indexOf('self_size');
+      // the type is read first and applied when the node's self_size arrives
+      if (typeField < 0 || sizeField < typeField) throw new Error('unexpected heap snapshot node_fields');
+      types = meta.node_types[0];
+      counted = types.map((t) => COUNTED_V8.has(t));
+      for (const t of types) if (COUNTED_V8.has(t)) byType[t] = 0;
+      chunk = head.slice(k + 9);
+      head = null;
+      started = true;
+    }
+    for (let p = 0; p < chunk.length; p++) {
+      const c = chunk.charCodeAt(p);
+      if (c >= 48 && c <= 57) {
+        cur = cur * 10 + (c - 48);
+        inNum = true;
+      } else if (c === 44 || c === 93) { // ',' or ']'
+        if (inNum) {
+          if (field === typeField) nodeType = cur;
+          else if (field === sizeField && cur > 0 && counted[nodeType]) {
+            byType[types[nodeType]]++;
+            total++;
+          }
+          field = field + 1 === nf ? 0 : field + 1;
+          cur = 0;
+          inNum = false;
+        }
+        if (c === 93) {
+          done = true;
+          break;
+        }
+      }
+    }
+  }
+  return { total, byType };
+}
+
+async function objectCounter() {
+  if (RT === 'bun') {
+    const jsc = await import('bun:jsc');
+    return {
+      live: async () => {
+        for (let i = 0; i < 4; i++) Bun.gc(true);
+        const h = jsc.heapStats();
+        // objectTypeCounts covers JSCells only; the rest of objectCount is auxiliary
+        // storage (butterflies)
+        const byType = { ...h.objectTypeCounts };
+        byType.butterfly = h.objectCount - Object.values(h.objectTypeCounts).reduce((a, v) => a + v, 0);
+        return { total: h.objectCount, byType };
+      },
+    };
+  }
+  if (typeof globalThis.gc !== 'function' || typeof v8.getHeapSnapshot !== 'function') return null;
+  return {
+    live: async () => {
+      for (let i = 0; i < 4; i++) globalThis.gc();
+      return countSnapshotNodes(v8.getHeapSnapshot());
+    },
+  };
+}
+
+// Objects kept per event: like measureRetained, but counted. Three readings around two
+// passes over every event of the workload: a pass that parses each event and drops the
+// result (whatever survives it — lazily built engine state, the readings' own objects —
+// is not the events'), then the pass that keeps every result. Kept per event =
+// (keep-pass growth − drop-pass growth) / events. The container is allocated before the
+// first reading. One reading is thrown away first: on Deno the first snapshot after a
+// workload change still counted the previous workload's 3,568 frame strings, which the
+// next one did not (the drop pass then "freed" them and inflated the result by 1.6/event).
+async function measureRetainedObjects(counter, parse, raw, makeFrame) {
+  const n = raw.length;
+  let keep = new Array(n).fill(null);
+  const pass = (keepIt) => {
+    for (let i = 0; i < n; i++) {
+      const r = parse(makeFrame(raw[i]));
+      if (keepIt) keep[i] = r;
+    }
+  };
+  await counter.live();
+  const c0 = await counter.live();
+  pass(false);
+  const c1 = await counter.live();
+  pass(true);
+  const c2 = await counter.live();
+  const touch = keep.length + (keep[n - 1] ? 1 : 0) + raw.length;
+  keep = null;
+  const perEvent = (c2.total - 2 * c1.total + c0.total) / n;
+  let byType = null;
+  if (c0.byType) {
+    byType = {};
+    for (const t of new Set([...Object.keys(c0.byType), ...Object.keys(c1.byType), ...Object.keys(c2.byType)])) {
+      const v = ((c2.byType[t] ?? 0) - 2 * (c1.byType[t] ?? 0) + (c0.byType[t] ?? 0)) / n;
+      if (Math.abs(v) >= 0.005) byType[t] = v;
+    }
+  }
+  return { perEvent, byType, touch };
+}
+
+// Objects created per parse (allocs_per_event), V8 only: the inspector's allocation
+// tracker (HeapProfiler.startTrackingHeapObjects with trackAllocations), which turns off
+// inline allocation and records every heap allocation with its JS stack; the count is
+// the sum over the trace tree it returns. One untimed round over the prepared frames
+// after the timed rounds, minus a tracked round of nothing (the start/stop overhead).
+// Exact only when the parse allocates from engine C++ code, where every object is its
+// own allocation (JSON.parse, Node's Buffer.toString, N-API calls): checked on a known
+// shape, {"a":"<long>","n":<int>,"b":[["x","<long>"]]} counts 7.00 per parse on Node
+// and Deno. Optimized JS code allocates differently: escape analysis drops objects and
+// allocation folding makes several objects one allocation (an object literal with a
+// nested array counted 1 per call, not 3), so a JS-implemented parser would undercount.
+// Parsers opt in with exactAllocs: [runtimes].
+async function allocTracker() {
+  if (RT === 'bun') return null;
+  let inspector;
+  try {
+    inspector = await import('node:inspector');
+  } catch {
+    return null;
+  }
+  const session = new inspector.Session();
+  session.connect();
+  const post = (m, p) => new Promise((res, rej) => session.post(m, p ?? {}, (e, r) => (e ? rej(e) : res(r))));
+  await post('HeapProfiler.enable');
+  let chunks = [];
+  session.on('HeapProfiler.addHeapSnapshotChunk', (m) => chunks.push(m.params.chunk));
+  const tracked = async (work) => {
+    chunks = [];
+    await post('HeapProfiler.startTrackingHeapObjects', { trackAllocations: true });
+    work();
+    await post('HeapProfiler.stopTrackingHeapObjects', { reportProgress: false });
+    const s = chunks.join('');
+    chunks = [];
+    const meta = JSON.parse(s.slice(0, s.lastIndexOf(',', s.indexOf('"nodes":['))) + '}').snapshot.meta;
+    const a = s.indexOf('"trace_tree":');
+    const b = s.indexOf(',\n"samples":', a) >= 0 ? s.indexOf(',\n"samples":', a) : s.indexOf(',"samples":', a);
+    if (a < 0 || b < 0) throw new Error('no trace_tree in the tracking snapshot');
+    const tree = JSON.parse(s.slice(a + 13, b));
+    const tf = meta.trace_node_fields, w = tf.length, ci = tf.indexOf('count'), chi = tf.indexOf('children');
+    let count = 0;
+    const walk = (arr) => {
+      for (let i = 0; i < arr.length; i += w) {
+        count += arr[i + ci];
+        walk(arr[i + chi]);
+      }
+    };
+    walk(tree);
+    return count;
+  };
+  return {
+    async perEvent(parse, inputs) {
+      const n = inputs.length;
+      let last = null;
+      const zero = await tracked(() => {});
+      const one = await tracked(() => {
+        for (let i = 0; i < n; i++) last = parse(inputs[i]);
+      });
+      return { perEvent: (one - zero) / n, touch: last ? 1 : 0 };
+    },
+  };
+}
+
+function objectsNote(P, kept, allocs) {
+  const parts = [];
+  if (kept) {
+    if (RT === 'bun') {
+      const terms = Object.entries(kept.byType ?? {})
+        .filter(([, v]) => Math.abs(v) >= 0.01)
+        .map(([t, v]) => `${v.toFixed(2)} ${t === 'butterfly' ? 'butterfly (element and out-of-line property storage)' : t}`);
+      parts.push(
+        `retained objects: bun:jsc heapStats().objectCount, every marked JSC cell after Bun.gc(true) x4, every event of the workload; per event ${terms.join(' + ') || '0'} (types from objectTypeCounts; a string's characters are a malloc block outside the cell heap, not a second object)`,
+      );
+    } else {
+      const label = { object: 'object (JS objects and arrays)', array: 'array (V8 backing stores: elements, out-of-object properties)', number: 'heap number' };
+      const terms = Object.entries(kept.byType ?? {})
+        .filter(([, v]) => Math.abs(v) >= 0.01)
+        .map(([t, v]) => `${v.toFixed(2)} ${label[t] ?? t}`);
+      parts.push(
+        `retained objects: V8 heap snapshot nodes (node:v8 getHeapSnapshot), every event of the workload; per event ${terms.join(' + ') || '0'}` +
+          '; code, hidden, object shape (maps), synthetic, native and size-0 nodes are not counted',
+      );
+    }
+    parts.push('kept = growth over a keep-every-result pass minus growth over a drop-every-result pass, so engine state and the readings themselves cancel; the results array is allocated first');
+  }
+  if (allocs != null) {
+    parts.push('allocs: V8 allocation tracker (inspector HeapProfiler.startTrackingHeapObjects, trackAllocations) over one untimed round of the prepared frames: every heap allocation, exact here because this parse allocates from engine C++ code');
+  } else if (P.mode !== 'baseline') {
+    parts.push(
+      RT === 'bun'
+        ? 'allocs: null, JSC exposes no allocation counter (heapStats counts only cells marked by the last collection)'
+        : 'allocs: null, the only exact V8 count (the allocation tracker) sees optimized JS after escape analysis and allocation folding, which drop and merge objects, so it is reported only where the parse allocates from engine C++ code (JSON.parse, N-API)',
+    );
+  }
+  return parts.length ? parts.join('. ') : null;
+}
+
 async function runChild(opts, manifest, workloads) {
   const P = PARSERS.find((p) => p.id === opts.child);
   if (!P) throw new Error(`unknown parser ${opts.child}`);
@@ -424,6 +681,8 @@ async function runChild(opts, manifest, workloads) {
   const gcRec = gcRecorder();
   const alloc = allocCounter();
   const probe = await retainedProbe();
+  const counter = await objectCounter();
+  const tracker = P.exactAllocs?.includes(RT) ? await allocTracker() : null;
   const rows = [];
   let sinkAll = 0;
 
@@ -449,6 +708,8 @@ async function runChild(opts, manifest, workloads) {
       alloc_bytes_per_event: null, allocs_per_event: null,
       gc_count: null, gc_ms: null,
       retained_bytes_per_event: null,
+      retained_objects_per_event: null,
+      objects_note: null,
     };
     rows.push(row);
     if (loadError) {
@@ -493,60 +754,111 @@ async function runChild(opts, manifest, workloads) {
     }
 
     const n = inputs.length;
-    const round = () => {
+
+    // One round under HARNESS.md "Arrival": for each burst of --burst frames, build the
+    // frames untimed from the lines' UTF-8 bytes with makeFrame (TextDecoder.decode: a
+    // new string per call, like MessageEvent.data; Buffer.from for the `ws` rows), time
+    // the parses, then drop the frames. Nothing is cached across rounds: every round
+    // decodes every frame again. Returns the timed ns (the sum of the bursts); the fold
+    // sink goes to roundSink.
+    const burst = opts.burst;
+    const frames = new Array(burst).fill(null);
+    let roundSink = 0;
+    const burstRound = () => {
+      let s = 0;
+      let ns = 0;
+      for (let b = 0; b < n; b += burst) {
+        const m = Math.min(burst, n - b);
+        for (let j = 0; j < m; j++) frames[j] = makeFrame(raw[b + j]);
+        const c0 = burstClockNs();
+        for (let j = 0; j < m; j++) s += fold(parse(frames[j]));
+        ns += burstClockNs() - c0;
+        frames.fill(null); // drop: the frames are garbage now, like the socket's
+      }
+      roundSink += s;
+      return ns;
+    };
+    // The pre-burst loop over the preloaded frame strings, used only by the untimed
+    // memory pass below.
+    const tightRound = () => {
       let s = 0;
       for (let i = 0; i < n; i++) s += fold(parse(inputs[i]));
       return s;
     };
 
-    // 3. warm up
+    // 3. warm up (burst rounds, like the measured ones)
     let sink = 0;
     const wEnd = nowNs() + opts.warmupMs * 1e6;
-    do sink += round(); while (nowNs() < wEnd);
+    do burstRound(); while (nowNs() < wEnd);
 
     // 4. measure
     const times = [];
-    const t0 = performance.now();
-    const a0 = alloc ? alloc() : 0;
-    const mStart = nowNs();
-    const mEnd = mStart + opts.minTimeMs * 1e6;
-    let last = mStart;
+    const mEnd = nowNs() + opts.minTimeMs * 1e6;
     while (times.length < 10000) {
-      sink += round();
-      const t = nowNs();
-      times.push(t - last);
-      last = t;
-      if (times.length >= opts.minRounds && t >= mEnd) break;
+      times.push(burstRound());
+      if (times.length >= opts.minRounds && nowNs() >= mEnd) break;
     }
-    const a1 = alloc ? alloc() : 0;
-    const t1 = performance.now();
+    sink += roundSink;
+
+    // 4b. memory pass (untimed): the counters read today (Deno's total_allocated_bytes,
+    // Node's gc entries) cannot be taken around each burst without counting the frame
+    // strings (decoding allocates them, and their garbage drives collections), so they
+    // come from as many rounds as were measured of the old loop over the preloaded
+    // frame strings: the parses only.
+    let memNote = null;
+    if (alloc || gcRec) {
+      const t0 = performance.now();
+      const a0 = alloc ? alloc() : 0;
+      for (let r = 0; r < times.length; r++) sink += tightRound();
+      const a1 = alloc ? alloc() : 0;
+      const t1 = performance.now();
+      if (alloc) row.alloc_bytes_per_event = (a1 - a0) / (times.length * w.events);
+      if (gcRec) {
+        const g = await gcRec.collect(t0, t1);
+        row.gc_count = g.count;
+        row.gc_ms = g.ms;
+      }
+      memNote = `${alloc ? 'alloc_bytes_per_event is' : 'gc_count and gc_ms are'} taken in a separate untimed pass after timing: as many rounds as were measured (${times.length}) of a tight loop over the preloaded frame strings, so they cover the parses only, not the burst frames' decoding` +
+        (gcRec ? '; they count every gc entry (minor, major, incremental, weak-callback) that starts inside that pass' : '');
+    }
     sinkAll += sink;
 
     times.sort((a, b) => a - b);
     const med = median(times);
     row.rounds = times.length;
     row.median_ns = Math.round(med);
-    row.min_ns = times[0];
-    row.p90_ns = percentile(times, 0.9);
+    row.min_ns = Math.round(times[0]);
+    row.p90_ns = Math.round(percentile(times, 0.9));
     row.ns_per_event = med / w.events;
     row.mb_per_s = w.bytes / (med / 1e9) / 1e6;
     row.events_per_s = w.events / (med / 1e9);
-    if (alloc) row.alloc_bytes_per_event = (a1 - a0) / (times.length * w.events);
-    if (gcRec) {
-      const g = await gcRec.collect(t0, t1);
-      row.gc_count = g.count;
-      row.gc_ms = g.ms;
-    }
+    row.notes = `${P.notes}. Timing: bursts of ${burst} frames, each built untimed with ${P.frame === 'buffer' ? 'Buffer.from(line bytes)' : 'TextDecoder.decode(line bytes)'} and dropped after its timed parses; clock ${BURST_CLOCK}` +
+      (memNote ? `. ${memNote}` : '');
     // 5. retained heap (untimed), not for baselines or results held outside the JS heap
     if (probe && P.mode !== 'baseline' && P.retained !== false) {
       const r = measureRetained(probe, parse, raw, makeFrame);
       row.retained_bytes_per_event = r.perEvent;
       sink += r.touch + inputs.length;
     }
+    // 6. objects kept and created (untimed)
+    let kept = null;
+    if (counter && P.mode !== 'baseline' && P.retained !== false) {
+      kept = await measureRetainedObjects(counter, parse, raw, makeFrame);
+      row.retained_objects_per_event = kept.perEvent;
+      sink += kept.touch;
+    }
+    if (tracker) {
+      const a = await tracker.perEvent(parse, inputs);
+      row.allocs_per_event = a.perEvent;
+      sink += a.touch;
+    }
+    row.objects_note = objectsNote(P, kept, row.allocs_per_event);
     process.stderr.write(
       `  ${RT} ${P.id.padEnd(26)} ${w.name.padEnd(10)} ${row.mb_per_s.toFixed(1).padStart(8)} MB/s ` +
         `${row.ns_per_event.toFixed(0).padStart(7)} ns/ev  rounds=${row.rounds}` +
         (row.retained_bytes_per_event == null ? '' : ` retained=${row.retained_bytes_per_event.toFixed(0)} B/ev`) +
+        (row.retained_objects_per_event == null ? '' : ` kept=${row.retained_objects_per_event.toFixed(2)} obj/ev`) +
+        (row.allocs_per_event == null ? '' : ` allocs=${row.allocs_per_event.toFixed(2)} obj/ev`) +
         ` sink=${sink}\n`,
     );
   }
@@ -603,6 +915,7 @@ async function main() {
     '--warmup-ms', String(opts.warmupMs),
     '--min-time-ms', String(opts.minTimeMs),
     '--min-rounds', String(opts.minRounds),
+    '--burst', String(opts.burst),
   ];
   const results = [];
   for (const p of parsers) {
@@ -621,7 +934,7 @@ async function main() {
           notes: p.notes, variant: p.variant === true, workload: w.name, events: w.events, bytes: w.bytes, digest_ok: false, errors: 0,
           error: why, rounds: 0, median_ns: null, min_ns: null, p90_ns: null, ns_per_event: null, mb_per_s: null,
           events_per_s: null, alloc_bytes_per_event: null, allocs_per_event: null, gc_count: null, gc_ms: null,
-          retained_bytes_per_event: null,
+          retained_bytes_per_event: null, retained_objects_per_event: null, objects_note: null,
         });
       }
     }
@@ -632,7 +945,7 @@ async function main() {
     language: 'JavaScript',
     runtime: runtimeInfo().label,
     host: hostInfo(),
-    settings: { warmup_ms: opts.warmupMs, min_time_ms: opts.minTimeMs, min_rounds: opts.minRounds },
+    settings: { warmup_ms: opts.warmupMs, min_time_ms: opts.minTimeMs, min_rounds: opts.minRounds, burst: opts.burst },
     corpus_fingerprint: manifest.fingerprint,
     results,
   };
