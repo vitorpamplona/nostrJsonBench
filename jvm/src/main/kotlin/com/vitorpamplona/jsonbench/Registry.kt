@@ -43,6 +43,7 @@ import com.vitorpamplona.jsonbench.parsers.MoshiStreaming
 import com.vitorpamplona.jsonbench.parsers.OrgJsonDom
 import com.vitorpamplona.jsonbench.parsers.ParssonStreaming
 import com.vitorpamplona.jsonbench.parsers.QuartzJackson
+import com.vitorpamplona.jsonbench.parsers.QuartzKite
 import com.vitorpamplona.jsonbench.parsers.QuartzKotlinx
 import com.vitorpamplona.jsonbench.parsers.QuartzLoop
 import com.vitorpamplona.jsonbench.parsers.QuartzLoopIntern
@@ -103,10 +104,20 @@ val PARSERS: List<ParserSpec> =
             "Apache-2.0 AND MIT",
             "typed",
             "string",
-            "Amethyst's production path: JacksonMapper.fromJson(String) -> Quartz EventDeserializer -> " +
-                "EventFactory builds the kind's Event subclass. The baseline. Quartz 1.19.0 and earlier also " +
-                "interned id, pubkey and tag values here.",
+            "Quartz's default JVM path: JacksonMapper.fromJson(String) -> Quartz EventDeserializer -> " +
+                "EventFactory builds the kind's Event subclass. Amethyst's production path until it switched " +
+                "to Kite (quartz-kite). Quartz 1.19.0 and earlier also interned id, pubkey and tag values here.",
         ) { QuartzJackson() },
+        ParserSpec(
+            "quartz-kite",
+            "Quartz Kite (hand-written reader, JsonEngine.KITE)",
+            "quartz",
+            "MIT",
+            "typed",
+            "string",
+            "Amethyst's production path: OptimizedJsonMapper.fromJson(String) with JsonEngine.KITE, " +
+                "Quartz's hand-written reader straight off the String -> EventFactory. No JSON library.",
+        ) { QuartzKite() },
         ParserSpec(
             "quartz-kotlinx",
             "Quartz KotlinSerializationMapper (kotlinx-serialization-json)",
