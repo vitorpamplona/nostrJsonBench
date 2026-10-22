@@ -104,6 +104,6 @@ Four libraries failed verification and are not ranked: cJSON, ojg (Go),
 ```bash
 ./run.sh            # all installed toolchains, ~3 h
 ./run.sh --quick    # smoke test
-./run.sh --only jvm # one harness; QUARTZ_DIR=../amethyst for an unreleased Quartz,
+./run.sh --only jvm # one harness; QUARTZ_DIR=../quartz for an unreleased Quartz,
                     # BENCH_JAVA_HOME=<jdk> to pick the JDK
 ```

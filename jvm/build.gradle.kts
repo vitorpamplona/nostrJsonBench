@@ -72,7 +72,7 @@ val writeLibraryVersions by tasks.registering(WriteProperties::class) {
     property("jsoniter-scala", libs.versions.jsoniterScala.get())
     property("java-allocation-instrumenter", libs.versions.allocationInstrumenter.get())
     // The Quartz under test: the release from the catalog, or the commit of a local
-    // Amethyst checkout when built with -PquartzDir (see settings.gradle.kts).
+    // vitorpamplona/quartz checkout when built with -PquartzDir (see settings.gradle.kts).
     property("quartz", quartzUnderTest)
 }
 // The allocation-counting agent (allocs_per_event). It is never on the benchmark's

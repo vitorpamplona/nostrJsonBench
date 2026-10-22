@@ -22,6 +22,8 @@ package com.vitorpamplona.jsonbench.parsers
 
 import com.vitorpamplona.jsonbench.Event
 import com.vitorpamplona.jsonbench.StringInputParser
+import com.vitorpamplona.quartz.nip01Core.core.JsonEngine
+import com.vitorpamplona.quartz.nip01Core.core.OptimizedJsonMapper
 import com.vitorpamplona.quartz.nip01Core.jackson.JacksonMapper
 import com.vitorpamplona.quartz.nip01Core.kotlinSerialization.KotlinSerializationMapper
 import com.vitorpamplona.quartz.nip01Core.core.Event as QuartzEvent
@@ -29,8 +31,9 @@ import com.vitorpamplona.quartz.nip01Core.core.Event as QuartzEvent
 private fun QuartzEvent.toBench() = Event(id, pubKey, createdAt, kind, tags, content, sig)
 
 /**
- * The production path: Quartz's EventDeserializer on jackson-databind + EventFactory. Quartz
- * 1.19.0 and earlier also interned id, pubkey and tag values here.
+ * Quartz's default JVM path: its EventDeserializer on jackson-databind + EventFactory. Amethyst's
+ * production path until it switched to Kite (quartz-kite). Quartz 1.19.0 and earlier also
+ * interned id, pubkey and tag values here.
  */
 class QuartzJackson : StringInputParser() {
     override fun decode(input: String) = JacksonMapper.fromJson(input).toBench()
@@ -41,6 +44,31 @@ class QuartzJackson : StringInputParser() {
         var sink = 0L
         for (s in inputs) {
             val e = JacksonMapper.fromJson(s)
+            sink += e.kind + e.tags.size + e.content.length
+        }
+        return sink
+    }
+}
+
+/**
+ * What Amethyst calls since it switched Quartz to Kite: OptimizedJsonMapper.fromJson with
+ * JsonEngine.KITE, Quartz's hand-written reader (Quartz 2.1.0+). The engine is a process-wide
+ * switch; each parser runs in its own child JVM, and the other Quartz rows call their mappers
+ * directly, so setting it here changes no other row.
+ */
+class QuartzKite : StringInputParser() {
+    init {
+        JsonEngine.current = JsonEngine.KITE
+    }
+
+    override fun decode(input: String) = OptimizedJsonMapper.fromJson(input).toBench()
+
+    override fun keep(input: String): Any = OptimizedJsonMapper.fromJson(input)
+
+    override fun parseAll(inputs: Array<String>): Long {
+        var sink = 0L
+        for (s in inputs) {
+            val e = OptimizedJsonMapper.fromJson(s)
             sink += e.kind + e.tags.size + e.content.length
         }
         return sink

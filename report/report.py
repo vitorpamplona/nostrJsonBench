@@ -23,7 +23,7 @@ MODE_TITLES = {
     "dom": "DOM: the library's generic tree (not converted into an Event)",
     "baseline": "Baselines (not parsers)",
 }
-BASELINE_PARSER = ("jvm", "quartz-jackson")
+BASELINE_PARSER = ("jvm", "quartz-kite")
 
 
 def load(results_dir):
@@ -130,8 +130,8 @@ def main():
     L.append("")
     L.append(
         "MB/s is input bytes per second of median round (higher is better). Single thread. "
-        "`× quartz` is speed relative to Amethyst's production parser (`jvm/quartz-jackson`, "
-        "Jackson + Quartz's EventDeserializer) on the same workload. Alloc is heap bytes per parsed "
+        "`× quartz` is speed relative to Amethyst's production parser (`jvm/quartz-kite`, "
+        "Quartz's hand-written Kite reader) on the same workload. Alloc is heap bytes per parsed "
         "event; objects created is allocations per parse, objects kept is what each kept event "
         "still holds alive, garbage the difference; GC is collections / total GC time during "
         "measurement.\n"
@@ -206,7 +206,7 @@ def main():
         L.append("## Every workload (MB/s)\n")
         L.append(
             "Geomean × quartz is the geometric mean, over the workloads both ran, of the speed relative "
-            "to `quartz-jackson` — one number per parser that doesn't let the big `all` workload dominate.\n"
+            "to `quartz-kite` — one number per parser that doesn't let the big `all` workload dominate.\n"
         )
         L.append("| language | parser | mode | " + " | ".join(workloads) + " | geomean × quartz |")
         L.append("|---|---|---|" + "---:|" * len(workloads) + "---:|")
@@ -260,7 +260,7 @@ def main():
     if any("quartz-loop" in v and "quartz-loop-intern" in v for v in trade.values()):
         L.append("## Interning: parse cost vs. memory kept (JVM)\n")
         L.append(
-            "`quartz-jackson` is the production parse (databind → `EventDeserializer` → `EventFactory`). "
+            "`quartz-jackson` is Quartz's Jackson parse (databind → `EventDeserializer` → `EventFactory`). "
             "`quartz-loop` is the same loop on a bare jackson-core parser and `quartz-loop-plain` also drops "
             "`EventFactory`. `quartz-loop-intern` adds the `String.intern()` on id, pubkey and every tag value "
             "that Quartz 1.19.0 and earlier did while parsing. *Retained* is the heap still held after parsing the whole "

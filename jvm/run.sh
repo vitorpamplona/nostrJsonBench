@@ -19,7 +19,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 
-# QUARTZ_DIR=<amethyst checkout> benchmarks that checkout's Quartz instead of the release.
+# QUARTZ_DIR=<vitorpamplona/quartz checkout> benchmarks that checkout's Quartz instead of the release.
 QUARTZ_ARGS=()
 if [[ -n "${QUARTZ_DIR:-}" ]]; then
     QUARTZ_ARGS=("-PquartzDir=$(cd "$QUARTZ_DIR" && pwd)")
