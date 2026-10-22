@@ -23,7 +23,8 @@ new: built just before the parse, as the socket would hand it over.
 
 The JVM is JetBrains Runtime 21 with Amethyst Desktop's flags (`-Xmx2g`, G1). Each JVM
 row is the median of three JVMs, because the JIT can compile a parser faster in one JVM
-than in the next. `quartz-kite` is what Amethyst ships: Quartz 2.1.0's hand-written reader.
+than in the next. `quartz-kite` is what Amethyst ships: Quartz 2.1.0's hand-written
+reader. Quartz's three rows are in bold.
 
 | # | runtime | parser | ns/event | alloc B/event | objects created/event | objects kept/event | garbage objects/event | retained B/event |
 |---:|---|---|---:|---:|---:|---:|---:|---:|
@@ -38,7 +39,7 @@ than in the next. `quartz-kite` is what Amethyst ships: Quartz 2.1.0's hand-writ
 | 9 | Rust | `simdjson_rust-typed` | 767 | 973 | 14.0 | 14.0 | 0.0 | 1,109 |
 | 10 | Rust | `simd_json-typed` | 770 | 2,705 | 15.2 | 14.0 | 1.2 | 1,109 |
 | 11 | JVM | `jsoniter-scala` | 775 | 2,772 | 30.8 | 25.8 | 5.0 | 1,381 |
-| 12 | JVM | `quartz-kite` | 786 | 1,321 | 21.3 | 21.3 | 0.0 | 1,288 |
+| **12** | **JVM** | **`quartz-kite`** | **786** | **1,321** | **21.3** | **21.3** | **0.0** | **1,288** |
 | 13 | Go | `goccy-typed` | 924 | 1,232 | 5.1 | 4.9 | 0.2 | 1,201 |
 | 14 | JVM | `fastjson2-reader` | 924 | 3,096 | 33.4 | 26.3 | 7.1 | 1,389 |
 | 15 | Deno | `json-parse-string` | 980 | 1,230 | 15.4 | 15.4 | 0.0 | 1,229 |
@@ -62,14 +63,14 @@ than in the next. `quartz-kite` is what Amethyst ships: Quartz 2.1.0's hand-writ
 | 33 | Python | `yyjson` | 1,395 | – | – | 28.1 | – | 2,089 |
 | 34 | Rust | `hifijson-serde-typed` | 1,401 | 1,655 | 15.5 | 14.0 | 1.5 | 1,281 |
 | 35 | C/C++ | `boostjson-typed` | 1,423 | 2,438 | 28.3 | 11.1 | 17.2 | 1,260 |
-| 36 | JVM | `quartz-jackson` | 1,593 | 2,332 | 43.1 | 25.5 | 17.6 | 1,376 |
+| **36** | **JVM** | **`quartz-jackson`** | **1,593** | **2,332** | **43.1** | **25.5** | **17.6** | **1,376** |
 | 37 | JVM | `parsson-streaming` | 1,728 | 2,048 | 54.3 | 25.8 | 28.5 | 1,381 |
 | 38 | Go | `jsoniter-typed-compat` | 1,818 | 1,717 | 19.0 | 12.1 | 6.9 | 1,080 |
 | 39 | JVM | `kotlinx-stream` | 1,826 | 4,467 | 65.4 | 25.8 | 39.6 | 1,384 |
 | 40 | Python | `python-rapidjson` | 1,911 | – | – | 25.9 | – | 2,127 |
 | 41 | JVM | `moshi-streaming` | 1,957 | 3,067 | 51.4 | 25.3 | 26.1 | 1,370 |
 | 42 | Python | `ujson` | 1,983 | – | – | 25.9 | – | 2,129 |
-| 43 | JVM | `quartz-kotlinx` | 2,175 | 4,476 | 115.2 | 25.5 | 89.7 | 1,377 |
+| **43** | **JVM** | **`quartz-kotlinx`** | **2,175** | **4,476** | **115.2** | **25.5** | **89.7** | **1,377** |
 | 44 | Go | `segmentio-typed` | 2,259 | 1,728 | 14.0 | 12.0 | 2.1 | 1,578 |
 | 45 | Bun | `simdjson-parse` | 2,263 | – | – | 17.5 | – | 1,260 |
 | 46 | Go | `jsonv2-typed` | 2,329 | 1,242 | 13.7 | 8.9 | 4.8 | 926 |
