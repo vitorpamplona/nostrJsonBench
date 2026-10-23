@@ -5,8 +5,8 @@ kotlin = "2.4.20"
 # Amethyst's Nostr library: its Kite reader (quartz-kite, what Amethyst ships), JacksonMapper
 # (quartz-jackson, Quartz's JVM default) and KotlinSerializationMapper (quartz-kotlinx, its
 # native default) are the production parsers everything else is compared to.
-quartz = "2.1.0"
-# Jackson and kotlinx.serialization at the versions Quartz 2.1.0 itself uses.
+quartz = "2.2.0"
+# Jackson and kotlinx.serialization at the versions Quartz 2.2.0 itself uses.
 jackson = "2.22.3"
 kotlinxSerialization = "1.11.0"
 secp256k1 = "0.24.0"
