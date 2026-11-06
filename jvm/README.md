@@ -145,10 +145,11 @@ dependency of the app.
 
 The allocation counter, `com.google.code.java-allocation-instrumenter:java-allocation-instrumenter`
 3.3.5, is Apache-2.0 (its published POM and the jar's `META-INF/LICENSE`); the jar shades
-ASM (BSD-3-Clause) and Guava (Apache-2.0). It is a measurement tool, not a parser: the
-build only compiles against its `Sampler` API (`compileOnly`) and `installDist` copies the
-jar to `build/install/jsonbench/agent/`, outside `lib/`, so it is never on a timed JVM's
-class path. Elsewhere, point the harness at the jar with `-Djsonbench.allocAgent=…` or
+ASM (BSD-3-Clause) and Guava (Apache-2.0). That shaded ASM can't read Java 27 class files,
+the JDK's own included, so the build's `allocationAgentJar` task swaps it for ASM 9.10.1
+relocated to the same package. It is a measurement tool, not a parser: the build only
+compiles against its `Sampler` API (`compileOnly`) and `installDist` puts the rebuilt jar in
+`build/install/jsonbench/agent/`, outside `lib/`, so it is never on a timed JVM's class path. Elsewhere, point the harness at the jar with `-Djsonbench.allocAgent=…` or
 `JSONBENCH_ALLOC_AGENT`; without it `allocs_per_event` stays null.
 
 ## Caveats
@@ -158,10 +159,11 @@ class path. Elsewhere, point the harness at the jar with `-Djsonbench.allocAgent
   scalar-heavy parsers but absolute numbers do not, and anything that leans on
   HotSpot-only machinery does not apply to the app at all.
 - **simdjson-java needs `jdk.incubator.vector`**, which does not exist on Android. It is
-  here to show the ceiling. 0.4.0 targets Java 24, so the harness (Java 21) uses 0.3.0,
-  whose schema-based parse calls `ClassResolver.reset()` on every document and therefore
-  re-resolves the record reflectively per event; that is why `simdjson-java-schema` is
-  slow and allocation-heavy. The DOM's `JsonValue` points into a reused tape that the
+  here to show the ceiling. The harness uses 0.4.0: 0.3.0 reads a `VectorOperators` field
+  that JDK 27's incubator module no longer has, and fails on every event. Its schema-based
+  parse still calls `ClassResolver.reset()` on every document and therefore re-resolves the
+  record reflectively per event; that is why `simdjson-java-schema` is slow and
+  allocation-heavy. The DOM's `JsonValue` points into a reused tape that the
   next parse overwrites.
 - **fastjson2 reflect** generates readers with ASM at runtime; Android has its own
   `fastjson2` artifact variants (`.android5`/`.android8`) that cannot do that.

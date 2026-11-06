@@ -1,4 +1,18 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.objectweb.asm.ClassReader
+import org.objectweb.asm.ClassWriter
+import org.objectweb.asm.Opcodes
+import org.objectweb.asm.commons.ClassRemapper
+import org.objectweb.asm.commons.Remapper
+import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
+
+buildscript {
+    repositories { mavenCentral() }
+    // Rebuilds the allocation agent with a newer ASM (allocationAgentJar below).
+    dependencies { classpath(libs.asm.commons) }
+}
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
@@ -32,9 +46,9 @@ application {
 }
 
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain(27)
     compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_21)
+        jvmTarget.set(JvmTarget.JVM_27)
     }
 }
 
@@ -83,17 +97,62 @@ val allocationAgent: Configuration =
     configurations.create("allocationAgent") {
         isTransitive = false
     }
+val agentAsm: Configuration =
+    configurations.create("agentAsm") {
+        isTransitive = false
+    }
+
+// java-allocation-instrumenter 3.3.5, the latest, bundles ASM relocated under its own package,
+// and that ASM refuses Java 27 class files (major 71): on JDK 27 every class, the JDK's own too,
+// would load uninstrumented and allocs_per_event would count nothing. This rebuilds the jar
+// with ASM 9.10.1 relocated to the same package, so the agent's code links to it unchanged.
+val allocationAgentJar =
+    tasks.register("allocationAgentJar") {
+        val agent: FileCollection = allocationAgent
+        val asm: FileCollection = agentAsm
+        val out = layout.buildDirectory.file("agent/java-allocation-instrumenter.jar")
+        inputs.files(agent, asm)
+        outputs.file(out)
+        doLast {
+            val from = "org/objectweb/asm/"
+            val to = "com/google/monitoring/runtime/instrumentation/asm/"
+            val relocate =
+                object : Remapper(Opcodes.ASM9) {
+                    override fun map(internalName: String): String =
+                        if (internalName.startsWith(from)) to + internalName.removePrefix(from) else internalName
+                }
+            ZipOutputStream(out.get().asFile.outputStream()).use { zip ->
+                ZipFile(agent.singleFile).use { jar ->
+                    jar.entries().asSequence().filter { !it.isDirectory && !it.name.startsWith(to) }.forEach {
+                        zip.putNextEntry(ZipEntry(it.name))
+                        jar.getInputStream(it).use { input -> input.copyTo(zip) }
+                        zip.closeEntry()
+                    }
+                }
+                asm.forEach { file ->
+                    ZipFile(file).use { jar ->
+                        jar.entries().asSequence().filter { it.name.startsWith(from) && it.name.endsWith(".class") }.forEach {
+                            val writer = ClassWriter(0)
+                            jar.getInputStream(it).use { input -> ClassReader(input).accept(ClassRemapper(writer, relocate), 0) }
+                            zip.putNextEntry(ZipEntry(to + it.name.removePrefix(from)))
+                            zip.write(writer.toByteArray())
+                            zip.closeEntry()
+                        }
+                    }
+                }
+            }
+        }
+    }
 distributions.main {
     contents {
-        from(allocationAgent) {
+        from(allocationAgentJar) {
             into("agent")
-            rename { "java-allocation-instrumenter.jar" }
         }
     }
 }
 tasks.named<JavaExec>("run") {
-    val agent = allocationAgent
-    doFirst { systemProperty("jsonbench.allocAgent", agent.singleFile.absolutePath) }
+    val agent = allocationAgentJar.map { it.outputs.files.singleFile }
+    doFirst { systemProperty("jsonbench.allocAgent", agent.get().absolutePath) }
 }
 
 sourceSets.main {
@@ -124,6 +183,9 @@ dependencies {
     // Allocation counting: compile against the Sampler API, ship the jar as an agent.
     compileOnly(libs.allocation.instrumenter)
     allocationAgent(libs.allocation.instrumenter)
+    agentAsm(libs.asm)
+    agentAsm(libs.asm.commons)
+    agentAsm(libs.asm.tree)
 
     // JNI secp256k1 backend quartz needs at runtime on plain JVM.
     runtimeOnly(libs.secp256k1.kmp.jni.jvm)

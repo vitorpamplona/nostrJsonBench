@@ -1,7 +1,7 @@
 # Versions of everything the JVM harness benchmarks. The harness writes the versions it
 # reports into each result row from this file (see build.gradle.kts), so keep them here.
 [versions]
-kotlin = "2.4.20"
+kotlin = "2.5.0-Beta2"
 # Amethyst's Nostr library: its Kite reader (quartz-kite, what Amethyst ships), JacksonMapper
 # (quartz-jackson, Quartz's JVM default) and KotlinSerializationMapper (quartz-kotlinx, its
 # native default) are the production parsers everything else is compared to.
@@ -14,18 +14,20 @@ gson = "2.14.0"
 moshi = "1.15.2"
 fastjson2 = "2.0.66"
 dslJson = "2.0.2"
-# 0.4.0 needs Java 24.
-simdjson = "0.3.0"
+simdjson = "0.4.0"
 orgJson = "20260814"
 jsoniter = "0.9.23"
 parsson = "1.1.9"
 minimalJson = "0.9.5"
 jsonSmart = "2.6.0"
 jsoniterScala = "2.41.6"
-scala3 = "3.3.8"
+scala3 = "3.10.0"
 # Not a parser: the bytecode agent that counts allocations (allocs_per_event) in a
 # separate, untimed child JVM. Apache-2.0 (checked against its published POM).
 allocationInstrumenter = "3.3.5"
+# The ASM the agent is rebuilt with (build.gradle.kts): 3.3.5 bundles an ASM that can't read
+# Java 27 class files, the JDK's own included, so on JDK 27 it would count nothing. BSD-3-Clause.
+asm = "9.10.1"
 
 [libraries]
 quartz = { group = "com.vitorpamplona.quartz", name = "quartz", version.ref = "quartz" }
@@ -46,6 +48,9 @@ jsonsmart = { group = "net.minidev", name = "json-smart", version.ref = "jsonSma
 jsoniter-scala-core = { group = "com.github.plokhotnyuk.jsoniter-scala", name = "jsoniter-scala-core_3", version.ref = "jsoniterScala" }
 jsoniter-scala-macros = { group = "com.github.plokhotnyuk.jsoniter-scala", name = "jsoniter-scala-macros_3", version.ref = "jsoniterScala" }
 allocation-instrumenter = { group = "com.google.code.java-allocation-instrumenter", name = "java-allocation-instrumenter", version.ref = "allocationInstrumenter" }
+asm = { group = "org.ow2.asm", name = "asm", version.ref = "asm" }
+asm-commons = { group = "org.ow2.asm", name = "asm-commons", version.ref = "asm" }
+asm-tree = { group = "org.ow2.asm", name = "asm-tree", version.ref = "asm" }
 scala3-library = { group = "org.scala-lang", name = "scala3-library_3", version.ref = "scala3" }
 
 [plugins]

@@ -1,0 +1,91 @@
+{
+  "version": 1,
+  "source": "corpus/nostr-2024-startup.ndjson.gz",
+  "canonical": false,
+  "fingerprint": "f995f42b68b5386e990c859e6c8058e8df7cd1d430e38e9e14d6e954e81c89bb",
+  "events": 31161,
+  "dropped_duplicates": 0,
+  "dropped_unrepresentable": 0,
+  "workloads": [
+    {
+      "name": "all",
+      "file": "all.ndjson",
+      "description": "every event in the corpus: the real kind mix a client downloads",
+      "events": 31161,
+      "bytes": 26995371,
+      "avg_bytes": 866,
+      "avg_tags": 2.7,
+      "digest": "3229b4730242e9187b214e7c2b3942f98318fb03cf65bde3bb9060afe9f6ae08"
+    },
+    {
+      "name": "notes",
+      "file": "notes.ndjson",
+      "description": "kind 1 text notes: short UTF-8 content, a few e/p tags",
+      "events": 3568,
+      "bytes": 3225314,
+      "avg_bytes": 904,
+      "avg_tags": 4.7,
+      "digest": "30778a6eb3cc4b07cfb0bab608f7cee7f85441372825de7bb3b619503c37349c"
+    },
+    {
+      "name": "reactions",
+      "file": "reactions.ndjson",
+      "description": "kind 7 reactions: tiny events, 3 tags, 1-char content",
+      "events": 2259,
+      "bytes": 1262105,
+      "avg_bytes": 559,
+      "avg_tags": 3.1,
+      "digest": "f506853ed4c179de0d32d376df6657d382f3f4854e6536c4b7b06e2c2c72598c"
+    },
+    {
+      "name": "dms",
+      "file": "dms.ndjson",
+      "description": "kind 4 NIP-04 DMs: base64 ciphertext content",
+      "events": 9600,
+      "bytes": 6147569,
+      "avg_bytes": 640,
+      "avg_tags": 1.3,
+      "digest": "78f6e750e56418567585e1133a973b72a73b7c48f61bc2160308adc66935d465"
+    },
+    {
+      "name": "giftwraps",
+      "file": "giftwraps.ndjson",
+      "description": "kind 1059 NIP-59 gift wraps: one long base64 NIP-44 payload",
+      "events": 1614,
+      "bytes": 2744879,
+      "avg_bytes": 1701,
+      "avg_tags": 1.2,
+      "digest": "fc15fb21bd4d7cafdaddf73f14812be5198423b5f4b5f697efb357ec42d50cdc"
+    },
+    {
+      "name": "metadata",
+      "file": "metadata.ndjson",
+      "description": "kind 0 profiles: content is an escaped JSON object",
+      "events": 268,
+      "bytes": 234786,
+      "avg_bytes": 876,
+      "avg_tags": 0.3,
+      "digest": "3a3ad3324c93bb05217ac54b7c8f281bc6f37ebda072b4eef2747ced47d674b9"
+    },
+    {
+      "name": "zaps",
+      "file": "zaps.ndjson",
+      "description": "kind 9735 zap receipts: escaped JSON zap request inside a tag",
+      "events": 1270,
+      "bytes": 2710501,
+      "avg_bytes": 2134,
+      "avg_tags": 5.3,
+      "digest": "b709e4bcc31783d5d94e07a0040a58385b67d9d19291641b4db410510f1b394b"
+    },
+    {
+      "name": "lists",
+      "file": "lists.ndjson",
+      "description": "contact/mute/relay/bookmark lists (3, 1000x, 3000x): tag-heavy",
+      "events": 40,
+      "bytes": 341172,
+      "avg_bytes": 8529,
+      "avg_tags": 25.2,
+      "digest": "3514174073f0373f13811b6070dbbf360c79820114898ed055ff5cde5e69c75e"
+    }
+  ]
+}
