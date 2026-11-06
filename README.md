@@ -25,8 +25,8 @@ The JVM rows ran on JetBrains Runtime 21 with Amethyst Desktop's flags (`-Xmx2g`
 JVM row is the median of three JVMs, because the JIT can compile a parser faster in one JVM
 than in the next. The harness now runs on JDK 27, which on one host parsed at the same speed
 and allocated about 4% fewer bytes:
-[2026-11-06 JDK 27 rerun](results/reference/2026-11-06-jdk27/README.md). `quartz-kite` is what Amethyst ships: Quartz 2.2.0's hand-written
-reader. Quartz's three rows are in bold.
+[2026-11-06 JDK 27 rerun](results/reference/2026-11-06-jdk27/README.md). `quartz-kite` is
+what Amethyst ships: Quartz 2.2.0's hand-written reader. Quartz's three rows are in bold.
 
 | # | runtime | parser | ns/event | alloc B/event | objects created/event | objects kept/event | garbage objects/event | retained B/event |
 |---:|---|---|---:|---:|---:|---:|---:|---:|
