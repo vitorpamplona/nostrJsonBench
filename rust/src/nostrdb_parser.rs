@@ -20,8 +20,9 @@ unsafe extern "C" {
     fn ndb_note_from_json(json: *const c_char, len: c_int, note: *mut *mut c_void, buf: *mut u8, bufsize: c_int) -> c_int;
 }
 
-/// Parses `json` into `buf`, sized as nostrdb's ingester sizes it (max(len x 8, 4096) bytes),
-/// and returns the note and its size in bytes. The buffer is `u64`s so the note is aligned.
+/// Parses `json` into `buf`, giving nostrdb max(len x 8, 4096) bytes of it, the size its
+/// ingester allocates per event, and returns the note and its size in bytes. The buffer is
+/// `u64`s so the note is aligned; it grows to the largest event and is reused.
 #[inline(always)]
 fn parse_into<'b>(buf: &'b mut Vec<u64>, json: &str) -> R<(Note<'b>, usize)> {
     let need = (json.len() * 8).max(4096).div_ceil(8);
@@ -35,7 +36,9 @@ fn parse_into<'b>(buf: &'b mut Vec<u64>, json: &str) -> R<(Note<'b>, usize)> {
             json.len() as c_int,
             &mut note,
             buf.as_mut_ptr().cast(),
-            (buf.len() * 8) as c_int,
+            // This line's size, as nostrdb's ingester allocates it, not the grown buffer:
+            // nostrdb's parse slows down with the size it is given.
+            (need * 8) as c_int,
         )
     };
     if size <= 0 || note.is_null() {
