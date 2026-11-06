@@ -11,7 +11,7 @@ output schema).
 python3 corpus/prepare.py        # once: builds .corpus/
 ./jvm/run.sh                     # full run -> results/jvm.json
 ./jvm/run.sh --quick             # smoke run (seconds per parser, noisy numbers)
-./jvm/run.sh --parsers quartz-kite,quartz-jackson,fastjson2-reader --workloads all,notes
+./jvm/run.sh --parsers quartz-kite,quartz-kotlinx,fastjson2-reader --workloads all,notes
 ./jvm/run.sh --list              # parser ids
 ```
 
@@ -109,19 +109,22 @@ Extra JVM flags go through `JAVA_OPTS`.
 ## Parsers
 
 Versions come from `jvm/gradle/libs.versions.toml`. Quartz is Amethyst's Nostr library
-(<https://github.com/vitorpamplona/quartz>), pulled from Maven Central
-(`com.vitorpamplona.quartz:quartz`). To benchmark an unreleased Quartz, point the build at a
+(<https://github.com/vitorpamplona/quartz>). 2.16.0 is not on Maven Central, so it comes
+from JitPack, built from the `v2.16.0` tag (`com.github.vitorpamplona.quartz:quartz-jvm`); the
+rows report it as `2.16.0`. To benchmark an unreleased Quartz, point the build at a
 checkout of it: `QUARTZ_DIR=../quartz ./jvm/run.sh` (or `-PquartzDir=…` on Gradle); its
 `:quartz` replaces the release through a composite build, and the Quartz rows record the
-checkout's commit (`local quartz@<sha>`) as their version. Jackson and
-kotlinx.serialization are pinned to the versions that Quartz release uses. Licenses were
+checkout's commit (`local quartz@<sha>`) as their version. kotlinx.serialization is pinned to
+the version that Quartz release uses. Quartz dropped Jackson in 2.4.0, and its `JacksonMapper`
+with it (the `quartz-jackson` row, last measured on 2.2.0 in the
+[2026-10-23 reference](../results/reference/2026-10-23/README.md)); Jackson stays at 2.22.3,
+the version Quartz last used, for the Jackson rows and the `quartz-loop` breakdown. Licenses were
 checked against each artifact's published POM.
 
 | id | library | version | license | mode | input |
 |---|---|---|---|---|---|
-| `quartz-kite` | Quartz Kite: `OptimizedJsonMapper.fromJson` with `JsonEngine.KITE`, Quartz's hand-written reader + `EventFactory` (Quartz ≥ 2.1.0; what Amethyst ships) | Quartz | MIT | typed | string |
-| `quartz-jackson` | Quartz `JacksonMapper` (jackson-databind + `EventDeserializer` + `EventFactory`; Quartz's JVM default; Quartz ≤ 1.19.0 also interns here) | Quartz | Apache-2.0 (Quartz: MIT) | typed | string |
-| `quartz-loop` / `quartz-loop-intern` / `quartz-loop-plain` | breakdown of `quartz-jackson`: its deserializer loop on bare jackson-core (no databind), then with the parse-time `String.intern()` of Quartz ≤ 1.19.0, then with a plain `Event` instead of `EventFactory` | 2.22.3 | Apache-2.0 (Quartz: MIT) | typed | string |
+| `quartz-kite` | Quartz Kite: `OptimizedJsonMapper.fromJson`, Quartz's hand-written reader + `EventFactory` (Quartz ≥ 2.1.0; what Amethyst ships) | Quartz | MIT | typed | string |
+| `quartz-loop` / `quartz-loop-intern` / `quartz-loop-plain` | the `EventDeserializer` loop of Quartz's former `JacksonMapper` (Quartz ≤ 2.3.x) on bare jackson-core (no databind), + `EventFactory`; then with the parse-time `String.intern()` of Quartz ≤ 1.19.0; then with a plain `Event` instead of `EventFactory` | 2.22.3 | Apache-2.0 (Quartz: MIT) | typed | string |
 | `quartz-kotlinx` | Quartz `KotlinSerializationMapper` (the iOS/native path) | Quartz | Apache-2.0 (Quartz: MIT) | typed | string |
 | `jackson-streaming-bytes` / `-string` | jackson-core `JsonFactory`, hand loop | 2.22.3 | Apache-2.0 | typed | bytes / string |
 | `jackson-tree` | jackson-databind `readTree` | 2.22.3 | Apache-2.0 | dom | bytes |

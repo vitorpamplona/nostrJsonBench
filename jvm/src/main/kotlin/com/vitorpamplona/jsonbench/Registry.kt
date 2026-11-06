@@ -42,7 +42,6 @@ import com.vitorpamplona.jsonbench.parsers.MinimalJsonDom
 import com.vitorpamplona.jsonbench.parsers.MoshiStreaming
 import com.vitorpamplona.jsonbench.parsers.OrgJsonDom
 import com.vitorpamplona.jsonbench.parsers.ParssonStreaming
-import com.vitorpamplona.jsonbench.parsers.QuartzJackson
 import com.vitorpamplona.jsonbench.parsers.QuartzKite
 import com.vitorpamplona.jsonbench.parsers.QuartzKotlinx
 import com.vitorpamplona.jsonbench.parsers.QuartzLoop
@@ -98,25 +97,14 @@ private const val SIMDJSON_NOTE =
 val PARSERS: List<ParserSpec> =
     listOf(
         ParserSpec(
-            "quartz-jackson",
-            "Quartz JacksonMapper (jackson-databind + EventDeserializer)",
-            "quartz",
-            "Apache-2.0 AND MIT",
-            "typed",
-            "string",
-            "Quartz's default JVM path: JacksonMapper.fromJson(String) -> Quartz EventDeserializer -> " +
-                "EventFactory builds the kind's Event subclass. Amethyst's production path until it switched " +
-                "to Kite (quartz-kite). Quartz 1.19.0 and earlier also interned id, pubkey and tag values here.",
-        ) { QuartzJackson() },
-        ParserSpec(
             "quartz-kite",
-            "Quartz Kite (hand-written reader, JsonEngine.KITE)",
+            "Quartz Kite (hand-written reader, OptimizedJsonMapper)",
             "quartz",
             "MIT",
             "typed",
             "string",
-            "Amethyst's production path: OptimizedJsonMapper.fromJson(String) with JsonEngine.KITE, " +
-                "Quartz's hand-written reader straight off the String -> EventFactory. No JSON library.",
+            "Amethyst's production path: OptimizedJsonMapper.fromJson(String), Quartz's hand-written Kite " +
+                "reader straight off the String -> EventFactory. No JSON library.",
         ) { QuartzKite() },
         ParserSpec(
             "quartz-kotlinx",
@@ -134,9 +122,9 @@ val PARSERS: List<ParserSpec> =
             "Apache-2.0 AND MIT",
             "typed",
             "string",
-            "Breakdown row: Quartz's EventDeserializer loop + EventFactory as shipped after Amethyst #4583 " +
-                "(no String.intern()) on a bare jackson-core parser. quartz-jackson minus this = the cost of " +
-                "going through ObjectMapper.readValue.",
+            "Breakdown row: the EventDeserializer loop of Quartz's former Jackson path (JacksonMapper, " +
+                "Quartz <= 2.3.x) as shipped after Amethyst #4583 (no String.intern()), on a bare jackson-core " +
+                "parser, + EventFactory.",
             variant = true,
         ) { QuartzLoop() },
         ParserSpec(

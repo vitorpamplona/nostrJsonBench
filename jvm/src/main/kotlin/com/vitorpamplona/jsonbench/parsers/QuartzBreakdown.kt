@@ -29,10 +29,10 @@ import com.vitorpamplona.quartz.utils.EventFactory
 import com.vitorpamplona.quartz.nip01Core.core.Event as QuartzEvent
 
 /**
- * Quartz's EventDeserializer loop (hash-dispatched field names, TagArrayDeserializer's
- * tag loop) copied onto a bare jackson-core parser, with each of its extra costs behind a
- * switch. Together with `quartz-jackson` these rows split the production path's time into
- * databind `readValue` overhead and `EventFactory` building the kind's subclass, and
+ * The EventDeserializer loop of Quartz's former Jackson path (hash-dispatched field names,
+ * TagArrayDeserializer's tag loop; JacksonMapper, Quartz 2.3.x and earlier) copied onto a
+ * bare jackson-core parser, with each of its extra costs behind a switch. `quartz-loop`
+ * against `quartz-loop-plain` is what `EventFactory` costs to build the kind's subclass, and
  * `quartz-loop-intern` keeps the parse-time `String.intern()` of Quartz 1.19.0 and earlier
  * measurable: its retained heap shows what interning saves, its time what it costs.
  */
