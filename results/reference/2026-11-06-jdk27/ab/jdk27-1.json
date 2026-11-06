@@ -1,0 +1,1255 @@
+{
+  "harness": "jvm",
+  "language": "Kotlin/Java (JVM)",
+  "runtime": "Eclipse Adoptium OpenJDK 64-Bit Server VM 27.0.1.0.2+1, GC G1, -Xmx2g -XX:+UseG1GC --add-modules=jdk.incubator.vector, one JVM per parser, Quartz 2.2.0",
+  "jvm": {
+    "vm": "OpenJDK 64-Bit Server VM",
+    "vendor": "Eclipse Adoptium",
+    "version": "27.0.1.0.2+1",
+    "gc": "G1",
+    "gc_beans": [
+      "G1 Young Generation",
+      "G1 Concurrent GC",
+      "G1 Old Generation"
+    ],
+    "args": [
+      "-Xmx2g",
+      "-XX:+UseG1GC",
+      "--add-modules=jdk.incubator.vector",
+      "-Dfile.encoding=UTF-8"
+    ]
+  },
+  "host": {
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "cores": 4,
+    "os": "Linux 6.18.44-fc-v242"
+  },
+  "settings": {
+    "warmup_ms": 1000,
+    "min_time_ms": 2000,
+    "min_rounds": 5,
+    "burst": 64,
+    "forks": 3
+  },
+  "corpus_fingerprint": "f995f42b68b5386e990c859e6c8058e8df7cd1d430e38e9e14d6e954e81c89bb",
+  "results": [
+    {
+      "parser": "quartz-jackson",
+      "library": "Quartz JacksonMapper (jackson-databind + EventDeserializer)",
+      "version": "2.2.0",
+      "license": "Apache-2.0 AND MIT",
+      "mode": "typed",
+      "input": "string",
+      "notes": "Quartz's default JVM path: JacksonMapper.fromJson(String) -> Quartz EventDeserializer -> EventFactory builds the kind's Event subclass. Amethyst's production path until it switched to Kite (quartz-kite). Quartz 1.19.0 and earlier also interned id, pubkey and tag values here. gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "all",
+      "events": 31161,
+      "bytes": 26995371,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 33,
+      "median_ns": 53249301,
+      "min_ns": 45329139,
+      "p90_ns": 56012198,
+      "ns_per_event": 1708.844,
+      "mb_per_s": 506.962,
+      "events_per_s": 585190.78,
+      "alloc_bytes_per_event": 2217.199,
+      "allocs_per_event": 43.138,
+      "gc_count": 7,
+      "gc_ms": 11,
+      "retained_bytes_per_event": 1332.536,
+      "retained_objects_per_event": 25.521,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 10.335
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 10.335
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 2.688
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 1
+        },
+        {
+          "class": "com.vitorpamplona.quartz.nip04Dm.messages.EncryptedDmEvent",
+          "per_event": 0.308
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        1592.883,
+        1733.095,
+        1708.844
+      ]
+    },
+    {
+      "parser": "quartz-jackson",
+      "library": "Quartz JacksonMapper (jackson-databind + EventDeserializer)",
+      "version": "2.2.0",
+      "license": "Apache-2.0 AND MIT",
+      "mode": "typed",
+      "input": "string",
+      "notes": "Quartz's default JVM path: JacksonMapper.fromJson(String) -> Quartz EventDeserializer -> EventFactory builds the kind's Event subclass. Amethyst's production path until it switched to Kite (quartz-kite). Quartz 1.19.0 and earlier also interned id, pubkey and tag values here. gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "notes",
+      "events": 3568,
+      "bytes": 3225314,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 241,
+      "median_ns": 7102464,
+      "min_ns": 5841583,
+      "p90_ns": 7706524,
+      "ns_per_event": 1990.601,
+      "mb_per_s": 454.112,
+      "events_per_s": 502360.871,
+      "alloc_bytes_per_event": 2629.209,
+      "allocs_per_event": 59.031,
+      "gc_count": 7,
+      "gc_ms": 8,
+      "retained_bytes_per_event": 1645.094,
+      "retained_objects_per_event": 37.052,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 15.179
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 15.179
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 4.695
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 1
+        },
+        {
+          "class": "com.vitorpamplona.quartz.nip10Notes.TextNoteEvent",
+          "per_event": 1
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        1857.872,
+        1990.601,
+        2003.081
+      ]
+    },
+    {
+      "parser": "quartz-jackson",
+      "library": "Quartz JacksonMapper (jackson-databind + EventDeserializer)",
+      "version": "2.2.0",
+      "license": "Apache-2.0 AND MIT",
+      "mode": "typed",
+      "input": "string",
+      "notes": "Quartz's default JVM path: JacksonMapper.fromJson(String) -> Quartz EventDeserializer -> EventFactory builds the kind's Event subclass. Amethyst's production path until it switched to Kite (quartz-kite). Quartz 1.19.0 and earlier also interned id, pubkey and tag values here. gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "reactions",
+      "events": 2259,
+      "bytes": 1262105,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 723,
+      "median_ns": 2357413,
+      "min_ns": 1997260,
+      "p90_ns": 2714589,
+      "ns_per_event": 1043.565,
+      "mb_per_s": 535.377,
+      "events_per_s": 958253.815,
+      "alloc_bytes_per_event": 1852.94,
+      "allocs_per_event": 44.898,
+      "gc_count": 11,
+      "gc_ms": 14,
+      "retained_bytes_per_event": 1000.283,
+      "retained_objects_per_event": 26.141,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 10.529
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 10.529
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 3.082
+        },
+        {
+          "class": "com.vitorpamplona.quartz.nip25Reactions.ReactionEvent",
+          "per_event": 1
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 1
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        1043.565,
+        1048.354,
+        978.765
+      ]
+    },
+    {
+      "parser": "quartz-kite",
+      "library": "Quartz Kite (hand-written reader, JsonEngine.KITE)",
+      "version": "2.2.0",
+      "license": "MIT",
+      "mode": "typed",
+      "input": "string",
+      "notes": "Amethyst's production path: OptimizedJsonMapper.fromJson(String) with JsonEngine.KITE, Quartz's hand-written reader straight off the String -> EventFactory. No JSON library. gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "all",
+      "events": 31161,
+      "bytes": 26995371,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 60,
+      "median_ns": 18875329,
+      "min_ns": 17732796,
+      "p90_ns": 33715943,
+      "ns_per_event": 605.736,
+      "mb_per_s": 1430.193,
+      "events_per_s": 1650885.132,
+      "alloc_bytes_per_event": 1293.763,
+      "allocs_per_event": 21.338,
+      "gc_count": 3,
+      "gc_ms": 5,
+      "retained_bytes_per_event": 1258.432,
+      "retained_objects_per_event": 21.344,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 8.212
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 8.212
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 2.688
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 0.983
+        },
+        {
+          "class": "com.vitorpamplona.quartz.nip04Dm.messages.EncryptedDmEvent",
+          "per_event": 0.308
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        553.52,
+        605.736,
+        704.445
+      ]
+    },
+    {
+      "parser": "quartz-kite",
+      "library": "Quartz Kite (hand-written reader, JsonEngine.KITE)",
+      "version": "2.2.0",
+      "license": "MIT",
+      "mode": "typed",
+      "input": "string",
+      "notes": "Amethyst's production path: OptimizedJsonMapper.fromJson(String) with JsonEngine.KITE, Quartz's hand-written reader straight off the String -> EventFactory. No JSON library. gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "notes",
+      "events": 3568,
+      "bytes": 3225314,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 474,
+      "median_ns": 2858158,
+      "min_ns": 2329936,
+      "p90_ns": 3705538,
+      "ns_per_event": 801.053,
+      "mb_per_s": 1128.459,
+      "events_per_s": 1248356.459,
+      "alloc_bytes_per_event": 1545.291,
+      "allocs_per_event": 28.634,
+      "gc_count": 6,
+      "gc_ms": 9,
+      "retained_bytes_per_event": 1485.917,
+      "retained_objects_per_event": 28.267,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 10.764
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 10.764
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 4.695
+        },
+        {
+          "class": "com.vitorpamplona.quartz.nip10Notes.TextNoteEvent",
+          "per_event": 1
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 0.954
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        718.838,
+        809.45,
+        801.053
+      ]
+    },
+    {
+      "parser": "quartz-kite",
+      "library": "Quartz Kite (hand-written reader, JsonEngine.KITE)",
+      "version": "2.2.0",
+      "license": "MIT",
+      "mode": "typed",
+      "input": "string",
+      "notes": "Amethyst's production path: OptimizedJsonMapper.fromJson(String) with JsonEngine.KITE, Quartz's hand-written reader straight off the String -> EventFactory. No JSON library. gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "reactions",
+      "events": 2259,
+      "bytes": 1262105,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 1621,
+      "median_ns": 916548,
+      "min_ns": 733689,
+      "p90_ns": 1040134,
+      "ns_per_event": 405.732,
+      "mb_per_s": 1377.02,
+      "events_per_s": 2464682.701,
+      "alloc_bytes_per_event": 878.775,
+      "allocs_per_event": 20.173,
+      "gc_count": 4,
+      "gc_ms": 6,
+      "retained_bytes_per_event": 875.786,
+      "retained_objects_per_event": 20.176,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 7.252
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 7.252
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 3.082
+        },
+        {
+          "class": "com.vitorpamplona.quartz.nip25Reactions.ReactionEvent",
+          "per_event": 1
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 1
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        386.345,
+        405.732,
+        419.705
+      ]
+    },
+    {
+      "parser": "quartz-kotlinx",
+      "library": "Quartz KotlinSerializationMapper (kotlinx-serialization-json)",
+      "version": "2.2.0",
+      "license": "Apache-2.0 AND MIT",
+      "mode": "typed",
+      "input": "string",
+      "notes": "Quartz's native/iOS path: KotlinSerializationMapper.fromJson(String) -> EventKSerializer -> EventFactory. gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "all",
+      "events": 31161,
+      "bytes": 26995371,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 31,
+      "median_ns": 54706436,
+      "min_ns": 46007583,
+      "p90_ns": 60061833,
+      "ns_per_event": 1755.606,
+      "mb_per_s": 493.459,
+      "events_per_s": 569603.913,
+      "alloc_bytes_per_event": 4216.794,
+      "allocs_per_event": 115.176,
+      "gc_count": 10,
+      "gc_ms": 17,
+      "retained_bytes_per_event": 1332.536,
+      "retained_objects_per_event": 25.521,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 10.335
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 10.335
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 2.688
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 1
+        },
+        {
+          "class": "com.vitorpamplona.quartz.nip04Dm.messages.EncryptedDmEvent",
+          "per_event": 0.308
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        1600.556,
+        1755.606,
+        1831.444
+      ]
+    },
+    {
+      "parser": "quartz-kotlinx",
+      "library": "Quartz KotlinSerializationMapper (kotlinx-serialization-json)",
+      "version": "2.2.0",
+      "license": "Apache-2.0 AND MIT",
+      "mode": "typed",
+      "input": "string",
+      "notes": "Quartz's native/iOS path: KotlinSerializationMapper.fromJson(String) -> EventKSerializer -> EventFactory. gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "notes",
+      "events": 3568,
+      "bytes": 3225314,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 233,
+      "median_ns": 6889628,
+      "min_ns": 6030223,
+      "p90_ns": 9675066,
+      "ns_per_event": 1930.95,
+      "mb_per_s": 468.141,
+      "events_per_s": 517879.92,
+      "alloc_bytes_per_event": 5097.688,
+      "allocs_per_event": 147.176,
+      "gc_count": 10,
+      "gc_ms": 15,
+      "retained_bytes_per_event": 1645.094,
+      "retained_objects_per_event": 37.052,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 15.179
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 15.179
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 4.695
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 1
+        },
+        {
+          "class": "com.vitorpamplona.quartz.nip10Notes.TextNoteEvent",
+          "per_event": 1
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        1918.608,
+        1930.95,
+        2216.559
+      ]
+    },
+    {
+      "parser": "quartz-kotlinx",
+      "library": "Quartz KotlinSerializationMapper (kotlinx-serialization-json)",
+      "version": "2.2.0",
+      "license": "Apache-2.0 AND MIT",
+      "mode": "typed",
+      "input": "string",
+      "notes": "Quartz's native/iOS path: KotlinSerializationMapper.fromJson(String) -> EventKSerializer -> EventFactory. gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "reactions",
+      "events": 2259,
+      "bytes": 1262105,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 604,
+      "median_ns": 2808745,
+      "min_ns": 2190993,
+      "p90_ns": 3760516,
+      "ns_per_event": 1243.358,
+      "mb_per_s": 449.348,
+      "events_per_s": 804273.795,
+      "alloc_bytes_per_event": 3388.551,
+      "allocs_per_event": 118.083,
+      "gc_count": 6,
+      "gc_ms": 10,
+      "retained_bytes_per_event": 1000.283,
+      "retained_objects_per_event": 26.141,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 10.529
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 10.529
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 3.082
+        },
+        {
+          "class": "com.vitorpamplona.quartz.nip25Reactions.ReactionEvent",
+          "per_event": 1
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 1
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        1222.98,
+        1341.063,
+        1243.358
+      ]
+    },
+    {
+      "parser": "jackson-streaming-string",
+      "library": "jackson-core",
+      "version": "2.22.3",
+      "license": "Apache-2.0",
+      "mode": "typed",
+      "input": "string",
+      "notes": "JsonFactory.createParser(String) + hand-written field loop (Quartz's loop minus intern/EventFactory). gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "all",
+      "events": 31161,
+      "bytes": 26995371,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 35,
+      "median_ns": 46187104,
+      "min_ns": 43023836,
+      "p90_ns": 54398917,
+      "ns_per_event": 1482.209,
+      "mb_per_s": 584.479,
+      "events_per_s": 674668.843,
+      "alloc_bytes_per_event": 1980.742,
+      "allocs_per_event": 38.15,
+      "gc_count": 6,
+      "gc_ms": 9,
+      "retained_bytes_per_event": 1323.411,
+      "retained_objects_per_event": 25.34,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 10.335
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 10.335
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 2.688
+        },
+        {
+          "class": "com.vitorpamplona.jsonbench.Event",
+          "per_event": 1
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 0.983
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        1481.054,
+        1708.674,
+        1482.209
+      ]
+    },
+    {
+      "parser": "jackson-streaming-string",
+      "library": "jackson-core",
+      "version": "2.22.3",
+      "license": "Apache-2.0",
+      "mode": "typed",
+      "input": "string",
+      "notes": "JsonFactory.createParser(String) + hand-written field loop (Quartz's loop minus intern/EventFactory). gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "notes",
+      "events": 3568,
+      "bytes": 3225314,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 279,
+      "median_ns": 5837056,
+      "min_ns": 5338530,
+      "p90_ns": 6385993,
+      "ns_per_event": 1635.946,
+      "mb_per_s": 552.558,
+      "events_per_s": 611267.05,
+      "alloc_bytes_per_event": 2319.691,
+      "allocs_per_event": 52.067,
+      "gc_count": 7,
+      "gc_ms": 9,
+      "retained_bytes_per_event": 1628.323,
+      "retained_objects_per_event": 37.004,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 15.177
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 15.177
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 4.695
+        },
+        {
+          "class": "com.vitorpamplona.jsonbench.Event",
+          "per_event": 1
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 0.954
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        1635.946,
+        1815.614,
+        1627.888
+      ]
+    },
+    {
+      "parser": "jackson-streaming-string",
+      "library": "jackson-core",
+      "version": "2.22.3",
+      "license": "Apache-2.0",
+      "mode": "typed",
+      "input": "string",
+      "notes": "JsonFactory.createParser(String) + hand-written field loop (Quartz's loop minus intern/EventFactory). gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "reactions",
+      "events": 2259,
+      "bytes": 1262105,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 650,
+      "median_ns": 2535245,
+      "min_ns": 2003111,
+      "p90_ns": 3807462,
+      "ns_per_event": 1122.286,
+      "mb_per_s": 497.824,
+      "events_per_s": 891038.144,
+      "alloc_bytes_per_event": 1625.859,
+      "allocs_per_event": 39.81,
+      "gc_count": 7,
+      "gc_ms": 10,
+      "retained_bytes_per_event": 1000.22,
+      "retained_objects_per_event": 26.139,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 10.529
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 10.529
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 3.082
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 1
+        },
+        {
+          "class": "com.vitorpamplona.jsonbench.Event",
+          "per_event": 1
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        1307.119,
+        1093.006,
+        1122.286
+      ]
+    },
+    {
+      "parser": "kotlinx-typed",
+      "library": "kotlinx-serialization-json",
+      "version": "1.11.0",
+      "license": "Apache-2.0",
+      "mode": "typed",
+      "input": "string",
+      "notes": "Json.decodeFromString into a plugin-generated @Serializable class with List<List<String>> tags. gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "all",
+      "events": 31161,
+      "bytes": 26995371,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 26,
+      "median_ns": 65445260,
+      "min_ns": 55799409,
+      "p90_ns": 78605096,
+      "ns_per_event": 2100.23,
+      "mb_per_s": 412.488,
+      "events_per_s": 476138.379,
+      "alloc_bytes_per_event": 2803.66,
+      "allocs_per_event": 54.874,
+      "gc_count": 6,
+      "gc_ms": 10,
+      "retained_bytes_per_event": 1323.695,
+      "retained_objects_per_event": 25.358,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 10.335
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 10.335
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 2.688
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 1
+        },
+        {
+          "class": "com.vitorpamplona.jsonbench.Event",
+          "per_event": 1
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        2100.23,
+        2281.018,
+        1958.561
+      ]
+    },
+    {
+      "parser": "kotlinx-typed",
+      "library": "kotlinx-serialization-json",
+      "version": "1.11.0",
+      "license": "Apache-2.0",
+      "mode": "typed",
+      "input": "string",
+      "notes": "Json.decodeFromString into a plugin-generated @Serializable class with List<List<String>> tags. gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "notes",
+      "events": 3568,
+      "bytes": 3225314,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 201,
+      "median_ns": 8084731,
+      "min_ns": 7437634,
+      "p90_ns": 10957345,
+      "ns_per_event": 2265.9,
+      "mb_per_s": 398.939,
+      "events_per_s": 441325.753,
+      "alloc_bytes_per_event": 3433.357,
+      "allocs_per_event": 71.673,
+      "gc_count": 7,
+      "gc_ms": 9,
+      "retained_bytes_per_event": 1629.094,
+      "retained_objects_per_event": 37.052,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 15.179
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 15.179
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 4.695
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 1
+        },
+        {
+          "class": "com.vitorpamplona.jsonbench.Event",
+          "per_event": 1
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        2527.524,
+        2188.632,
+        2265.9
+      ]
+    },
+    {
+      "parser": "kotlinx-typed",
+      "library": "kotlinx-serialization-json",
+      "version": "1.11.0",
+      "license": "Apache-2.0",
+      "mode": "typed",
+      "input": "string",
+      "notes": "Json.decodeFromString into a plugin-generated @Serializable class with List<List<String>> tags. gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "reactions",
+      "events": 2259,
+      "bytes": 1262105,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 571,
+      "median_ns": 3095293,
+      "min_ns": 2582053,
+      "p90_ns": 3479696,
+      "ns_per_event": 1370.205,
+      "mb_per_s": 407.75,
+      "events_per_s": 729817.823,
+      "alloc_bytes_per_event": 1966.998,
+      "allocs_per_event": 55.903,
+      "gc_count": 9,
+      "gc_ms": 12,
+      "retained_bytes_per_event": 1000.283,
+      "retained_objects_per_event": 26.141,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 10.529
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 10.529
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 3.082
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 1
+        },
+        {
+          "class": "com.vitorpamplona.jsonbench.Event",
+          "per_event": 1
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        1296.043,
+        1370.205,
+        1501.725
+      ]
+    },
+    {
+      "parser": "fastjson2-reader",
+      "library": "fastjson2",
+      "version": "2.0.66",
+      "license": "Apache-2.0",
+      "mode": "typed",
+      "input": "string→bytes",
+      "notes": "JSONReader.of(byte[]) + hand-written loop dispatching on readFieldNameHashCode(). gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "all",
+      "events": 31161,
+      "bytes": 26995371,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 40,
+      "median_ns": 37857447,
+      "min_ns": 30466993,
+      "p90_ns": 41888901,
+      "ns_per_event": 1214.898,
+      "mb_per_s": 713.08,
+      "events_per_s": 823114.142,
+      "alloc_bytes_per_event": 3034.333,
+      "allocs_per_event": 33.427,
+      "gc_count": 7,
+      "gc_ms": 12,
+      "retained_bytes_per_event": 1342.446,
+      "retained_objects_per_event": 26.292,
+      "retained_top_classes": [
+        {
+          "class": "java.lang.String",
+          "per_event": 10.811
+        },
+        {
+          "class": "byte[]",
+          "per_event": 10.81
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 2.688
+        },
+        {
+          "class": "com.vitorpamplona.jsonbench.Event",
+          "per_event": 1
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 0.983
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        1146.626,
+        1214.898,
+        1296.751
+      ]
+    },
+    {
+      "parser": "fastjson2-reader",
+      "library": "fastjson2",
+      "version": "2.0.66",
+      "license": "Apache-2.0",
+      "mode": "typed",
+      "input": "string→bytes",
+      "notes": "JSONReader.of(byte[]) + hand-written loop dispatching on readFieldNameHashCode(). gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "notes",
+      "events": 3568,
+      "bytes": 3225314,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 302,
+      "median_ns": 5434316,
+      "min_ns": 4476137,
+      "p90_ns": 5977880,
+      "ns_per_event": 1523.071,
+      "mb_per_s": 593.509,
+      "events_per_s": 656568.37,
+      "alloc_bytes_per_event": 3761.682,
+      "allocs_per_event": 48.662,
+      "gc_count": 8,
+      "gc_ms": 11,
+      "retained_bytes_per_event": 1666.027,
+      "retained_objects_per_event": 38.889,
+      "retained_top_classes": [
+        {
+          "class": "java.lang.String",
+          "per_event": 16.12
+        },
+        {
+          "class": "byte[]",
+          "per_event": 16.12
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 4.695
+        },
+        {
+          "class": "com.vitorpamplona.jsonbench.Event",
+          "per_event": 1
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 0.954
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        1560.048,
+        1523.071,
+        1464.834
+      ]
+    },
+    {
+      "parser": "fastjson2-reader",
+      "library": "fastjson2",
+      "version": "2.0.66",
+      "license": "Apache-2.0",
+      "mode": "typed",
+      "input": "string→bytes",
+      "notes": "JSONReader.of(byte[]) + hand-written loop dispatching on readFieldNameHashCode(). gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "reactions",
+      "events": 2259,
+      "bytes": 1262105,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 1154,
+      "median_ns": 1391581,
+      "min_ns": 1096317,
+      "p90_ns": 1664858,
+      "ns_per_event": 616.016,
+      "mb_per_s": 906.958,
+      "events_per_s": 1623333.46,
+      "alloc_bytes_per_event": 1975.203,
+      "allocs_per_event": 34.868,
+      "gc_count": 11,
+      "gc_ms": 17,
+      "retained_bytes_per_event": 1009.721,
+      "retained_objects_per_event": 26.614,
+      "retained_top_classes": [
+        {
+          "class": "java.lang.String",
+          "per_event": 10.767
+        },
+        {
+          "class": "byte[]",
+          "per_event": 10.764
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 3.082
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 1
+        },
+        {
+          "class": "com.vitorpamplona.jsonbench.Event",
+          "per_event": 1
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        616.016,
+        627.479,
+        559.577
+      ]
+    },
+    {
+      "parser": "dsljson-bytes",
+      "library": "dsl-json",
+      "version": "2.0.2",
+      "license": "BSD-3-Clause",
+      "mode": "typed",
+      "input": "string→bytes",
+      "notes": "Hand-written loop over a reused com.dslplatform.json.JsonReader, dispatching on fillName() hashes (what @CompiledJson's annotation processor would generate; no processor used). gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "all",
+      "events": 31161,
+      "bytes": 26995371,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 33,
+      "median_ns": 49620600,
+      "min_ns": 44409738,
+      "p90_ns": 55088830,
+      "ns_per_event": 1592.394,
+      "mb_per_s": 544.036,
+      "events_per_s": 627985.151,
+      "alloc_bytes_per_event": 2490.147,
+      "allocs_per_event": 30.715,
+      "gc_count": 8,
+      "gc_ms": 12,
+      "retained_bytes_per_event": 1334.847,
+      "retained_objects_per_event": 25.817,
+      "retained_top_classes": [
+        {
+          "class": "java.lang.String",
+          "per_event": 10.811
+        },
+        {
+          "class": "byte[]",
+          "per_event": 10.335
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 2.688
+        },
+        {
+          "class": "com.vitorpamplona.jsonbench.Event",
+          "per_event": 1
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 0.983
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        1716.69,
+        1523.944,
+        1592.394
+      ]
+    },
+    {
+      "parser": "dsljson-bytes",
+      "library": "dsl-json",
+      "version": "2.0.2",
+      "license": "BSD-3-Clause",
+      "mode": "typed",
+      "input": "string→bytes",
+      "notes": "Hand-written loop over a reused com.dslplatform.json.JsonReader, dispatching on fillName() hashes (what @CompiledJson's annotation processor would generate; no processor used). gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "notes",
+      "events": 3568,
+      "bytes": 3225314,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 245,
+      "median_ns": 7076932,
+      "min_ns": 5680259,
+      "p90_ns": 7386032,
+      "ns_per_event": 1983.445,
+      "mb_per_s": 455.75,
+      "events_per_s": 504173.277,
+      "alloc_bytes_per_event": 3135.372,
+      "allocs_per_event": 45.207,
+      "gc_count": 7,
+      "gc_ms": 9,
+      "retained_bytes_per_event": 1650.955,
+      "retained_objects_per_event": 37.946,
+      "retained_top_classes": [
+        {
+          "class": "java.lang.String",
+          "per_event": 16.12
+        },
+        {
+          "class": "byte[]",
+          "per_event": 15.177
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 4.695
+        },
+        {
+          "class": "com.vitorpamplona.jsonbench.Event",
+          "per_event": 1
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 0.954
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        1983.445,
+        1810.286,
+        1983.522
+      ]
+    },
+    {
+      "parser": "dsljson-bytes",
+      "library": "dsl-json",
+      "version": "2.0.2",
+      "license": "BSD-3-Clause",
+      "mode": "typed",
+      "input": "string→bytes",
+      "notes": "Hand-written loop over a reused com.dslplatform.json.JsonReader, dispatching on fillName() hashes (what @CompiledJson's annotation processor would generate; no processor used). gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "reactions",
+      "events": 2259,
+      "bytes": 1262105,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 937,
+      "median_ns": 1767927,
+      "min_ns": 1368824,
+      "p90_ns": 1997761,
+      "ns_per_event": 782.615,
+      "mb_per_s": 713.89,
+      "events_per_s": 1277767.691,
+      "alloc_bytes_per_event": 1689.994,
+      "allocs_per_event": 32.105,
+      "gc_count": 12,
+      "gc_ms": 17,
+      "retained_bytes_per_event": 1005.946,
+      "retained_objects_per_event": 26.378,
+      "retained_top_classes": [
+        {
+          "class": "java.lang.String",
+          "per_event": 10.767
+        },
+        {
+          "class": "byte[]",
+          "per_event": 10.529
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 3.082
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 1
+        },
+        {
+          "class": "com.vitorpamplona.jsonbench.Event",
+          "per_event": 1
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        798.844,
+        613.49,
+        782.615
+      ]
+    }
+  ]
+}
