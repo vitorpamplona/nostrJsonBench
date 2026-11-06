@@ -309,7 +309,7 @@ val PARSERS: List<ParserSpec> =
             "dom",
             "string→bytes-padded",
             "SimdJsonParser.parse(byte[], len) -> JsonValue over a reused tape (invalidated by the next parse). " +
-                "0.3.0: 0.4.0 needs Java 24. $SIMDJSON_NOTE",
+                SIMDJSON_NOTE,
         ) { SimdjsonDom() },
         ParserSpec(
             "simdjson-java-schema",
@@ -319,9 +319,9 @@ val PARSERS: List<ParserSpec> =
             "typed",
             "string→bytes-padded",
             "SimdJsonParser.parse(byte[], len, Record.class): schema-based parse into a record with String[][] tags. " +
-                "0.3.0 calls ClassResolver.reset() on every parse, so it re-resolves the record by reflection per event " +
+                "0.4.0 calls ClassResolver.reset() on every parse, so it re-resolves the record by reflection per event " +
                 "(the bulk of its time and allocation). " +
-                "0.3.0: 0.4.0 needs Java 24. $SIMDJSON_NOTE",
+                SIMDJSON_NOTE,
         ) { SimdjsonSchema() },
         ParserSpec(
             "orgjson-dom",
