@@ -1,0 +1,501 @@
+{
+  "harness": "jvm",
+  "language": "Kotlin/Java (JVM)",
+  "runtime": "Eclipse Adoptium OpenJDK 64-Bit Server VM 27.0.1.0.2+1, GC G1, -Xmx2g -XX:+UseG1GC --add-modules=jdk.incubator.vector, one JVM per parser, Quartz 2.16.0",
+  "jvm": {
+    "vm": "OpenJDK 64-Bit Server VM",
+    "vendor": "Eclipse Adoptium",
+    "version": "27.0.1.0.2+1",
+    "gc": "G1",
+    "gc_beans": [
+      "G1 Young Generation",
+      "G1 Concurrent GC",
+      "G1 Old Generation"
+    ],
+    "args": [
+      "-Xmx2g",
+      "-XX:+UseG1GC",
+      "--add-modules=jdk.incubator.vector",
+      "-Dfile.encoding=UTF-8"
+    ]
+  },
+  "host": {
+    "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+    "cores": 4,
+    "os": "Linux 6.18.44-fc-v242"
+  },
+  "settings": {
+    "warmup_ms": 1000,
+    "min_time_ms": 2000,
+    "min_rounds": 5,
+    "burst": 64,
+    "forks": 3
+  },
+  "corpus_fingerprint": "f995f42b68b5386e990c859e6c8058e8df7cd1d430e38e9e14d6e954e81c89bb",
+  "results": [
+    {
+      "parser": "quartz-kite",
+      "library": "Quartz Kite (hand-written reader, OptimizedJsonMapper)",
+      "version": "2.16.0",
+      "license": "MIT",
+      "mode": "typed",
+      "input": "string",
+      "notes": "Amethyst's production path: OptimizedJsonMapper.fromJson(String), Quartz's hand-written Kite reader straight off the String -> EventFactory. No JSON library. gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "dms",
+      "events": 9600,
+      "bytes": 6147569,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 434,
+      "median_ns": 3097737,
+      "min_ns": 2801392,
+      "p90_ns": 4286664,
+      "ns_per_event": 322.681,
+      "mb_per_s": 1984.535,
+      "events_per_s": 3099036.49,
+      "alloc_bytes_per_event": 842.439,
+      "allocs_per_event": 13.941,
+      "gc_count": 8,
+      "gc_ms": 13,
+      "retained_bytes_per_event": 842.65,
+      "retained_objects_per_event": 13.942,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 5.333
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 5.333
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 1.276
+        },
+        {
+          "class": "com.vitorpamplona.quartz.nip04Dm.messages.EncryptedDmEvent",
+          "per_event": 1
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 1
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        327.447,
+        322.681,
+        322.026
+      ]
+    },
+    {
+      "parser": "quartz-kite",
+      "library": "Quartz Kite (hand-written reader, OptimizedJsonMapper)",
+      "version": "2.16.0",
+      "license": "MIT",
+      "mode": "typed",
+      "input": "string",
+      "notes": "Amethyst's production path: OptimizedJsonMapper.fromJson(String), Quartz's hand-written Kite reader straight off the String -> EventFactory. No JSON library. gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "giftwraps",
+      "events": 1614,
+      "bytes": 2744879,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 1306,
+      "median_ns": 904167,
+      "min_ns": 803948,
+      "p90_ns": 1020887,
+      "ns_per_event": 560.203,
+      "mb_per_s": 3035.81,
+      "events_per_s": 1785068.466,
+      "alloc_bytes_per_event": 1915.271,
+      "allocs_per_event": 14.304,
+      "gc_count": 10,
+      "gc_ms": 17,
+      "retained_bytes_per_event": 1949.026,
+      "retained_objects_per_event": 14.308,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 5.559
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 5.559
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 1.185
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 1
+        },
+        {
+          "class": "com.vitorpamplona.quartz.nip59Giftwrap.wraps.GiftWrapEvent",
+          "per_event": 1
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        553.397,
+        560.203,
+        572.637
+      ]
+    },
+    {
+      "parser": "quartz-kite",
+      "library": "Quartz Kite (hand-written reader, OptimizedJsonMapper)",
+      "version": "2.16.0",
+      "license": "MIT",
+      "mode": "typed",
+      "input": "string",
+      "notes": "Amethyst's production path: OptimizedJsonMapper.fromJson(String), Quartz's hand-written Kite reader straight off the String -> EventFactory. No JSON library. gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "lists",
+      "events": 40,
+      "bytes": 341172,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 10000,
+      "median_ns": 108149,
+      "min_ns": 90778,
+      "p90_ns": 169166,
+      "ns_per_event": 2703.725,
+      "mb_per_s": 3154.648,
+      "events_per_s": 369860.1,
+      "alloc_bytes_per_event": 10128.6,
+      "allocs_per_event": 86.8,
+      "gc_count": 5,
+      "gc_ms": 9,
+      "retained_bytes_per_event": 10128.6,
+      "retained_objects_per_event": 86.8,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 29.825
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 29.825
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 25.25
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 0.9
+        },
+        {
+          "class": "com.vitorpamplona.quartz.nip02FollowList.ContactListEvent",
+          "per_event": 0.275
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        2733.8,
+        2636.925,
+        2703.725
+      ]
+    },
+    {
+      "parser": "quartz-kite",
+      "library": "Quartz Kite (hand-written reader, OptimizedJsonMapper)",
+      "version": "2.16.0",
+      "license": "MIT",
+      "mode": "typed",
+      "input": "string",
+      "notes": "Amethyst's production path: OptimizedJsonMapper.fromJson(String), Quartz's hand-written Kite reader straight off the String -> EventFactory. No JSON library. gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "all-ndb",
+      "events": 27232,
+      "bytes": 24312035,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 66,
+      "median_ns": 19144684,
+      "min_ns": 18468022,
+      "p90_ns": 26454361,
+      "ns_per_event": 703.022,
+      "mb_per_s": 1269.91,
+      "events_per_s": 1422431.418,
+      "alloc_bytes_per_event": 1296.744,
+      "allocs_per_event": 21.505,
+      "gc_count": 7,
+      "gc_ms": 10,
+      "retained_bytes_per_event": 1277.175,
+      "retained_objects_per_event": 21.559,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 8.34
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 8.34
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 2.661
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 0.983
+        },
+        {
+          "class": "com.vitorpamplona.quartz.nip04Dm.messages.EncryptedDmEvent",
+          "per_event": 0.353
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        707.305,
+        703.022,
+        686.123
+      ]
+    },
+    {
+      "parser": "quartz-kite",
+      "library": "Quartz Kite (hand-written reader, OptimizedJsonMapper)",
+      "version": "2.16.0",
+      "license": "MIT",
+      "mode": "typed",
+      "input": "string",
+      "notes": "Amethyst's production path: OptimizedJsonMapper.fromJson(String), Quartz's hand-written Kite reader straight off the String -> EventFactory. No JSON library. gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "notes-ndb",
+      "events": 2979,
+      "bytes": 2692778,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 507,
+      "median_ns": 2561985,
+      "min_ns": 2368429,
+      "p90_ns": 3830794,
+      "ns_per_event": 860.015,
+      "mb_per_s": 1051.051,
+      "events_per_s": 1162770.274,
+      "alloc_bytes_per_event": 1495.807,
+      "allocs_per_event": 28.482,
+      "gc_count": 7,
+      "gc_ms": 11,
+      "retained_bytes_per_event": 1474.981,
+      "retained_objects_per_event": 28.195,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 10.736
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 10.736
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 4.705
+        },
+        {
+          "class": "com.vitorpamplona.quartz.nip10Notes.TextNoteEvent",
+          "per_event": 1
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 0.957
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        855.253,
+        860.015,
+        863.791
+      ]
+    },
+    {
+      "parser": "quartz-kite",
+      "library": "Quartz Kite (hand-written reader, OptimizedJsonMapper)",
+      "version": "2.16.0",
+      "license": "MIT",
+      "mode": "typed",
+      "input": "string",
+      "notes": "Amethyst's production path: OptimizedJsonMapper.fromJson(String), Quartz's hand-written Kite reader straight off the String -> EventFactory. No JSON library. gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "reactions-ndb",
+      "events": 1014,
+      "bytes": 530756,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 3654,
+      "median_ns": 380525,
+      "min_ns": 344346,
+      "p90_ns": 438701,
+      "ns_per_event": 375.271,
+      "mb_per_s": 1394.799,
+      "events_per_s": 2664739.505,
+      "alloc_bytes_per_event": 810.241,
+      "allocs_per_event": 18.074,
+      "gc_count": 4,
+      "gc_ms": 8,
+      "retained_bytes_per_event": 808.647,
+      "retained_objects_per_event": 17.974,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 6.725
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 6.725
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 2.525
+        },
+        {
+          "class": "com.vitorpamplona.quartz.nip25Reactions.ReactionEvent",
+          "per_event": 1
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 1
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        382.908,
+        370.603,
+        375.271
+      ]
+    },
+    {
+      "parser": "quartz-kite",
+      "library": "Quartz Kite (hand-written reader, OptimizedJsonMapper)",
+      "version": "2.16.0",
+      "license": "MIT",
+      "mode": "typed",
+      "input": "string",
+      "notes": "Amethyst's production path: OptimizedJsonMapper.fromJson(String), Quartz's hand-written Kite reader straight off the String -> EventFactory. No JSON library. gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "metadata-ndb",
+      "events": 178,
+      "bytes": 144412,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 8511,
+      "median_ns": 161288,
+      "min_ns": 145023,
+      "p90_ns": 243405,
+      "ns_per_event": 906.112,
+      "mb_per_s": 895.367,
+      "events_per_s": 1103615.892,
+      "alloc_bytes_per_event": 1055.416,
+      "allocs_per_event": 11.039,
+      "gc_count": 2,
+      "gc_ms": 4,
+      "retained_bytes_per_event": 987.506,
+      "retained_objects_per_event": 10.899,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 4.646
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 4.646
+        },
+        {
+          "class": "com.vitorpamplona.quartz.nip01Core.metadata.MetadataEvent",
+          "per_event": 1
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 0.326
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 0.281
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        885.848,
+        908.219,
+        906.112
+      ]
+    },
+    {
+      "parser": "quartz-kite",
+      "library": "Quartz Kite (hand-written reader, OptimizedJsonMapper)",
+      "version": "2.16.0",
+      "license": "MIT",
+      "mode": "typed",
+      "input": "string",
+      "notes": "Amethyst's production path: OptimizedJsonMapper.fromJson(String), Quartz's hand-written Kite reader straight off the String -> EventFactory. No JSON library. gc_count/gc_ms: separate untimed pass after measurement, as many rounds as were measured, tight loop over preloaded Strings (no frames built), GarbageCollectorMXBean deltas.",
+      "variant": false,
+      "workload": "zaps-ndb",
+      "events": 1236,
+      "bytes": 2647216,
+      "digest_ok": true,
+      "errors": 0,
+      "error": null,
+      "rounds": 635,
+      "median_ns": 2304408,
+      "min_ns": 2139278,
+      "p90_ns": 3227158,
+      "ns_per_event": 1864.408,
+      "mb_per_s": 1148.762,
+      "events_per_s": 536363.352,
+      "alloc_bytes_per_event": 2696.214,
+      "allocs_per_event": 31.577,
+      "gc_count": 7,
+      "gc_ms": 10,
+      "retained_bytes_per_event": 2698.479,
+      "retained_objects_per_event": 33.581,
+      "retained_top_classes": [
+        {
+          "class": "byte[]",
+          "per_event": 11.111
+        },
+        {
+          "class": "java.lang.String",
+          "per_event": 11.111
+        },
+        {
+          "class": "java.lang.String[]",
+          "per_event": 5.344
+        },
+        {
+          "class": "kotlin.SynchronizedLazyImpl",
+          "per_event": 2
+        },
+        {
+          "class": "java.lang.String[][]",
+          "per_event": 1
+        }
+      ],
+      "objects_note": "allocs_per_event: bytecode-level count (java-allocation-instrumenter 3.3.5 agent, separate untimed JVM, parse thread only, fewest of 3 passes after 3 warm-up passes; Strings counted in String's constructors), before JIT escape analysis, so it can be higher than what the JIT actually allocates. retained_objects_per_event: live instances added, from GC.class_histogram before/after keeping every result.",
+      "forks": 3,
+      "fork_ns_per_event": [
+        1864.989,
+        1864.408,
+        1857.661
+      ]
+    }
+  ]
+}
