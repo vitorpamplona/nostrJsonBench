@@ -36,7 +36,7 @@ Each parser entry declares a `mode`:
 
 `typed` is what a Nostr client actually needs (an `Event` it can keep), so it is the
 headline ranking. `borrowed` and `dom` show what a library could do if the app adapted
-to it. Production-path entries (e.g. Quartz's own `JacksonMapper`) are `typed`.
+to it. Production-path entries (e.g. Quartz's own `OptimizedJsonMapper`) are `typed`.
 
 The timed loop must make the result observable so the compiler cannot drop it: fold
 something from every parsed event into a sink (e.g. `sink += kind + tags.size +

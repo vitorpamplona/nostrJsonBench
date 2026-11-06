@@ -64,7 +64,7 @@ val quartzUnderTest: String =
                 .trim()
         val name = File(dir).canonicalFile.name
         "local $name@${commit.ifEmpty { "unknown" }}"
-    } ?: libs.versions.quartz.get()
+    } ?: libs.versions.quartz.get().removePrefix("v")
 
 // Library versions the harness reports in every result row, taken from the same
 // catalog entries the dependencies below resolve.
@@ -160,10 +160,12 @@ sourceSets.main {
 }
 
 dependencies {
-    // The production path under test: JacksonMapper / KotlinSerializationMapper.
-    // Quartz exposes jackson-databind as `api`, which the plain Jackson parsers use too.
+    // The production paths under test: Kite (OptimizedJsonMapper) and KotlinSerializationMapper.
     implementation(libs.quartz)
     implementation(libs.kotlinx.serialization.json)
+    // The Jackson rows and the quartz-loop breakdown. Quartz itself no longer depends on Jackson.
+    implementation(libs.jackson.core)
+    implementation(libs.jackson.databind)
 
     // Competing parsers.
     implementation(libs.gson)

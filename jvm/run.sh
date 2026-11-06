@@ -4,7 +4,7 @@
 #
 #   ./jvm/run.sh                      # everything -> results/jvm.json
 #   ./jvm/run.sh --quick              # smoke run
-#   ./jvm/run.sh --parsers quartz-jackson,fastjson2-reader --workloads all,notes
+#   ./jvm/run.sh --parsers quartz-kite,fastjson2-reader --workloads all,notes
 #   ./jvm/run.sh --list
 #
 # The installed `jsonbench` script carries the JVM flags (-Xmx2g -XX:+UseG1GC

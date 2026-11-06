@@ -26,7 +26,10 @@ JVM row is the median of three JVMs, because the JIT can compile a parser faster
 than in the next. The harness now runs on JDK 27, which on one host parsed at the same speed
 and allocated about 4% fewer bytes:
 [2026-11-06 JDK 27 rerun](results/reference/2026-11-06-jdk27/README.md). `quartz-kite` is
-what Amethyst ships: Quartz 2.2.0's hand-written reader. Quartz's three rows are in bold.
+what Amethyst ships: Quartz's hand-written reader. Quartz's three rows are in bold, measured on
+Quartz 2.2.0. The harness now runs Quartz 2.16.0, which on one host parsed at the same speed and
+allocated the same (`quartz-kotlinx` 24 B/event more): [Quartz 2.16.0 A/B](results/reference/2026-11-06-quartz-2.16.0/README.md).
+2.16.0 has no `quartz-jackson`: Quartz dropped Jackson in 2.4.0.
 
 | # | runtime | parser | ns/event | alloc B/event | objects created/event | objects kept/event | garbage objects/event | retained B/event |
 |---:|---|---|---:|---:|---:|---:|---:|---:|
