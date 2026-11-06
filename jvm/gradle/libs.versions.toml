@@ -14,7 +14,6 @@ gson = "2.14.0"
 moshi = "1.15.2"
 fastjson2 = "2.0.66"
 dslJson = "2.0.2"
-# 0.4.0 needs Java 24.
 simdjson = "0.4.0"
 orgJson = "20260814"
 jsoniter = "0.9.23"
