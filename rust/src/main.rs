@@ -6,6 +6,7 @@
 mod alloc;
 mod dom;
 mod model;
+mod nostrdb_parser;
 mod parsers;
 
 use parsers::{Entry, Line};

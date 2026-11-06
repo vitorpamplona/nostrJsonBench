@@ -142,6 +142,10 @@ fn copy_into(scratch: &mut Vec<u8>, l: Line) -> &mut [u8] {
     scratch.as_mut_slice()
 }
 
+// ---------------------------------------------------------------- nostrdb
+parser!(NostrdbNote { buf: Vec<u64> = Vec::new() }, |s, l| crate::nostrdb_parser::parse_borrowed(&mut s.buf, l.s)?);
+parser!(keep NostrdbNoteOwned { buf: Vec<u64> = Vec::new() }, |s, l| crate::nostrdb_parser::parse_owned(&mut s.buf, l.s)?);
+
 // ---------------------------------------------------------------- serde_json
 parser!(keep SerdeJsonTyped {}, |s, l| serde_json::from_str::<Event>(l.s).map_err(e)?);
 parser!(keep SerdeJsonBorrowed {}, |s, l| serde_json::from_str::<EventCow>(l.s).map_err(e)?);
@@ -509,8 +513,26 @@ impl Utf8Baseline {
 
 const COPY_TYPED: &str = "simd_json::serde::from_slice_with_buffers into owned Event. simd-json unescapes in place, so the &str frame is first copied into a reused scratch Vec<u8> (timed); Buffers reused across lines";
 
+const NOSTRDB_NOTE: &str = "nostrdb's ndb_note_from_json (Damus and Notedeck's parser; the C function, through FFI, since nostrdb-rs keeps its bindings private) straight off the frame's bytes, into nostrdb's note format: id, pubkey and sig hex-decoded to bytes, content and tags decoded into the note's string table, 64-hex tag values packed as 32-byte ids. One buffer of max(frame length x 8, 4096) bytes, as nostrdb's ingester sizes it, reused across lines. nostrdb can't parse \\uXXXX escapes (nostrdb.c: case 'u': these aren't handled yet), so it fails every event that has one";
+
 pub fn all() -> Vec<Entry> {
     vec![
+        entry!(
+            NostrdbNote,
+            "nostrdb-note",
+            "nostrdb",
+            "borrowed",
+            "string",
+            NOSTRDB_NOTE
+        ),
+        entry!(
+            NostrdbNoteOwned,
+            "nostrdb-note-owned",
+            "nostrdb",
+            "typed",
+            "string",
+            "As nostrdb-note, then the note copied into a block of its own, sized to the note, as nostrdb's ingester does before it hands the note to its writer (realloc(note, note_size)): the event an app keeps. Its strings are decoded and owned by that block; id, pubkey, sig and 64-hex tag values are bytes, not hex strings. Same \\uXXXX limitation as nostrdb-note"
+        ),
         entry!(
             SerdeJsonTyped,
             "serde_json-typed",

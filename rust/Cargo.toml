@@ -29,6 +29,8 @@ simdjson-rust = { version = "0.4.0-alpha.2", features = ["native"] }
 sonic-rs = "0.5.10"
 struson = "0.7.2"
 tinyjson = "2.5.1"
+# Damus and Notedeck's parser, at the nostrdb-rs revision Notedeck pins (0.10.0, git only).
+nostrdb = { git = "https://github.com/damus-io/nostrdb-rs", rev = "e22e5632a75e" }
 
 [build-dependencies]
 serde_json = "1.0.154"
